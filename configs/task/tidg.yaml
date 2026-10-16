@@ -1,0 +1,19 @@
+# TiDG multiclass classification task
+
+task_type: "news"
+num_labels: 7
+label_names: ["culture", "economy", "health", "politics", "religion", "scitech", "sport"]
+data_dir: "data/processed/tidg"
+train_file: "train.csv"
+val_file: "val.csv"
+test_file: "test.csv"
+delimiter: ","
+text_column: "cleaned_text"          # or "translit_text" for SERA version
+label_column: "label"
+max_length: 256
+batch_size: 32
+use_class_weights: true
+imbalanced: true
+num_workers: 0
+pin_memory: false
+prefetch_factor: 2

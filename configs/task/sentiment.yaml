@@ -1,0 +1,19 @@
+# Sentiment analysis task
+
+task_type: "sentiment"
+num_labels: 2
+label_names: ["negative", "positive"]
+data_dir: "data/processed/sentiment"
+train_file: "train.csv"
+val_file: "dev.csv"
+test_file: "test.csv"
+delimiter: ";"
+text_column: "text"
+label_column: "label"
+max_length: 256
+batch_size: 32
+use_class_weights: true
+imbalanced: true
+num_workers: 0
+pin_memory: false
+prefetch_factor: 2

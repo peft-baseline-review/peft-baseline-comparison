@@ -1,0 +1,22 @@
+# Common training hyperparameters
+
+num_epochs: 15
+learning_rate: 2e-5
+weight_decay: 0.01
+gradient_accumulation_steps: 2
+max_grad_norm: 1.0 
+lr_scheduler: "cosine_warmup"
+warmup_ratio: 0.1
+use_amp: true
+amp_dtype: "float16"
+early_stopping: true
+patience: 5
+monitor_metric: "f1_weighted"
+monitor_mode: "max"
+min_delta: 0.001
+optimizer: "AdamW"
+betas: [0.9, 0.999]
+eps: 1e-8
+clip_grad: true
+save_frequency: 1
+save_top_k: 3

@@ -1,0 +1,31 @@
+# Common evaluation defaults
+
+metrics:
+  - accuracy
+  - f1_weighted
+  - f1_macro
+  - precision_macro
+  - recall_macro
+  - mcc
+  - kappa
+compute_ci: true
+bootstrap_samples: 1000
+confidence_level: 0.95
+composite_alpha: 0.01
+statistical_tests:
+  - t_test
+  - effect_size
+  - wilcoxon
+  - mcnemar
+multiple_comparison_correction: "holm"
+effect_size_thresholds:
+  negligible: 0.2
+  small: 0.5
+  medium: 0.8
+  large: 1.2
+min_samples_for_analysis: 10
+measure_power: true
+carbon_intensity_kg_per_kwh: 0.233
+energy_per_flop_pj: 20.0
+memory_overhead_factor: 2.5
+enable_power_measurement: true

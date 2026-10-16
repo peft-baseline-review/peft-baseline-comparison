@@ -1,0 +1,21 @@
+* text=auto
+*.py    text eol=lf
+*.ps1   text eol=crlf
+*.yaml  text eol=lf
+*.yml   text eol=lf
+*.md    text eol=lf
+*.txt   text eol=lf
+*.json  text eol=lf
+*.csv   text eol=lf
+
+# Binary assets - no line-ending conversion
+*.png   binary
+*.pdf   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.pt    binary
+*.pth   binary
+*.bin   binary
+*.safetensors binary

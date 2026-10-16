@@ -1,0 +1,38 @@
+# ============================================================
+# TiroBERTa Base Configuration for TiDG (7-class genre)
+# ============================================================
+
+model: !include ../model/tiroberta.yaml
+task: !include ../task/tidg.yaml
+evaluation: !include ../common/evaluation.yaml
+training: !include ../common/training_defaults.yaml
+
+# ============================================================
+# Experiment-Level Settings
+# ============================================================
+seed: 42
+device: "cuda"
+use_mlflow: true
+mlflow_experiment_name: "peft_tiroberta_tidg"
+deterministic: true
+randomize_order: false
+counterbalance: false
+timeout_hours: 11
+output_dir: "experiments"
+logs_dir: "logs"
+artifacts_dir: "artifacts"
+save_artifacts: true
+save_checkpoints: true
+replication_count: 5
+
+# ============================================================
+# Default PEFT Settings (will be overridden)
+# ============================================================
+peft:
+  method: "lora"          # placeholder
+  rank: 8
+  alpha: 16
+  dropout: 0.1
+  target_modules: null
+  use_dora: false
+  quantization_enabled: false

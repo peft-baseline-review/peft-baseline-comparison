@@ -1,0 +1,39 @@
+# Environments
+.venv/
+venv/
+env/
+.conda/
+*.egg-info/
+__pycache__/
+*.py[cod]
+
+# Data cache (not the CSVs themselves)
+data_cache/
+
+# Results and logs
+results/
+experiments/
+artifacts/
+logs/
+mlruns/
+*.log
+*.ckpt
+*.pt
+*.pth
+*.bin
+*.safetensors
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local secrets
+.env
+*.env
+
+# Build artifacts from analysis scripts
+kappa_mcc.csv
+kappa_mcc.tex
+_copy_manifest.txt

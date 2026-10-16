@@ -1,0 +1,22 @@
+# Afro-XLM-R model configuration
+name: "Davlan/afro-xlmr-base"
+architecture: "xlm-roberta"
+torch_dtype: "float32"
+freeze_base: true
+pretrained: true
+
+# XLM-R base architecture (same as RoBERTa-base)
+hidden_size: 768
+num_hidden_layers: 12
+num_attention_heads: 12
+intermediate_size: 3072
+max_position_embeddings: 512
+vocab_size: 250000
+
+# Target modules (XLM-R uses the same names as RoBERTa)
+target_modules:
+  lora: ["query", "key", "value", "attention.output.dense"]
+  dora: ["query", "key", "value", "attention.output.dense"]
+  adalora: ["query", "key", "value", "attention.output.dense", "intermediate.dense", "output.dense"]
+  progressive: ["query", "key", "value", "attention.output.dense", "intermediate.dense", "output.dense"]
+  qlora: ["query", "key", "value", "attention.output.dense"]

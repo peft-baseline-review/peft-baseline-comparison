@@ -1,0 +1,23 @@
+# GPT-2 model configuration
+name: "openai-community/gpt2"
+architecture: "gpt2"
+torch_dtype: "float32"
+freeze_base: true
+pretrained: true
+
+# GPT-2 small architecture
+hidden_size: 768
+num_hidden_layers: 12
+num_attention_heads: 12
+intermediate_size: 3072
+max_position_embeddings: 1024
+vocab_size: 50257
+
+# Target modules for PEFT methods (GPT-2 specific)
+target_modules:
+  lora: ["c_attn", "c_proj"]                # attention only (c_attn is fused QKV, c_proj is output)
+  dora: ["c_attn", "c_proj"]
+  adalora: ["c_attn", "c_proj", "c_fc"]     # attention + FFN
+  ia3: ["c_attn", "c_proj", "c_fc"]
+  progressive: ["c_attn", "c_proj", "c_fc"] # full search space
+  qlora: ["c_attn", "c_proj"]

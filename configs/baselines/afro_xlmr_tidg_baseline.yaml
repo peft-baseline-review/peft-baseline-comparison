@@ -1,0 +1,228 @@
+# ============================================================================
+# Afro-XLM-R tidg Baseline - Full Suite (8 methods)
+# ============================================================================
+
+base_config: "configs/experiments/afro_xlmr_tidg_base.yaml"
+
+output_dir: "results/baselines/afro_xlmr_tidg"
+replication_count: 5
+use_mlflow: true
+parallel: false
+max_workers: 4
+
+statistical_analysis:
+  confidence_level: 0.95
+  bootstrap_samples: 1000
+  statistical_tests: ["t_test", "effect_size", "wilcoxon_signed_rank"]
+  multiple_comparison_correction: "holm"
+  effect_size_thresholds:
+    small: 0.2
+    medium: 0.5
+    large: 0.8
+  min_samples_for_analysis: 2
+
+platform_optimizations:
+  windows:
+    num_workers: 4
+    pin_memory: true
+    use_amp: true
+    gradient_accumulation_steps: 2
+  linux:
+    num_workers: 4
+    pin_memory: true
+    use_amp: true
+    gradient_accumulation_steps: 2
+  darwin:
+    num_workers: 2
+    pin_memory: false
+    use_amp: true
+    gradient_accumulation_steps: 2
+
+baseline_methods:
+
+  # --- Positive controls ---
+  - name: "afro_xlmr_full_finetuning"
+    description: "Full fine-tuning upper bound"
+    peft_method: "full"
+    scientific_role: "positive_control"
+    priority: 1
+    expected_compute_hours: 0.5
+    config_overrides:
+      peft.method: "full"
+      model.freeze_base: false
+      peft.optimize_hyperparams: false
+      training.learning_rate: 2e-5
+      experiment_name: "Afro-XLM-R Full Fine-tuning"
+
+  - name: "afro_xlmr_vanilla"
+    description: "Vanilla classifier (frozen base)"
+    peft_method: "vanilla"
+    scientific_role: "negative_control"
+    priority: 4
+    expected_compute_hours: 0.3
+    config_overrides:
+      peft.method: "vanilla"
+      peft.optimize_hyperparams: false
+      training.learning_rate: 2e-5
+      experiment_name: "Afro-XLM-R Vanilla"
+
+  - name: "afro_xlmr_lora"
+    description: "LoRA (attention only)"
+    peft_method: "lora"
+    scientific_role: "positive_control"
+    priority: 1
+    expected_compute_hours: 0.4
+    config_overrides:
+      peft.method: "lora"
+      peft.optimize_hyperparams: false
+      peft.rank: 8
+      peft.target_modules: ["query", "key", "value", "attention.output.dense"]
+      training.learning_rate: 2e-4
+      experiment_name: "Afro-XLM-R LoRA"
+
+  - name: "afro_xlmr_dora"
+    description: "DoRA (attention only)"
+    peft_method: "dora"
+    scientific_role: "experimental"
+    priority: 2
+    expected_compute_hours: 0.4
+    config_overrides:
+      peft.method: "dora"
+      peft.use_dora: true
+      peft.optimize_hyperparams: false
+      peft.rank: 8
+      peft.target_modules: ["query", "key", "value", "attention.output.dense"]
+      training.learning_rate: 2e-4
+      experiment_name: "Afro-XLM-R DoRA"
+
+  - name: "afro_xlmr_adalora"
+    description: "AdaLoRA (attention + FFN)"
+    peft_method: "adalora"
+    scientific_role: "experimental"
+    priority: 2
+    expected_compute_hours: 0.5
+    config_overrides:
+      peft.method: "adalora"
+      peft.optimize_hyperparams: false
+      peft.rank: 8
+      peft.target_modules: ["query", "key", "value", "attention.output.dense", "intermediate.dense", "output.dense"]
+      training.learning_rate: 2e-4
+      experiment_name: "Afro-XLM-R AdaLoRA"
+
+  # --- Budget-based progressive variants ---
+  - name: "afro_xlmr_progressive_adaptive"
+    description: "Progressive PEPT adaptive schedule (budget-based)"
+    peft_method: "progressive"
+    scientific_role: "experimental_novel"
+    priority: 1
+    expected_compute_hours: 0.6
+    config_overrides:
+      peft.method: "progressive"
+      peft.allocation_strategy: "budget"
+      peft.rank_schedule: "adaptive"
+      peft.optimize_hyperparams: false
+      peft.initial_rank: 4
+      peft.final_rank: 16
+      peft.min_rank: 2
+      peft.max_rank: 32
+      peft.target_modules: ["query", "key", "value", "attention.output.dense", "intermediate.dense", "output.dense"]
+      peft.allocation_update_frequency: 200
+      peft.temperature: 1.0
+      training.learning_rate: 2e-4
+      experiment_name: "Afro-XLM-R Progressive Adaptive"
+
+  - name: "afro_xlmr_progressive_linear"
+    description: "Progressive PEPT linear ablation (budget-based)"
+    peft_method: "progressive"
+    scientific_role: "ablation_study"
+    priority: 5
+    expected_compute_hours: 0.6
+    config_overrides:
+      peft.method: "progressive"
+      peft.allocation_strategy: "budget"
+      peft.rank_schedule: "linear"
+      peft.optimize_hyperparams: false
+      peft.initial_rank: 4
+      peft.final_rank: 16
+      peft.min_rank: 2
+      peft.max_rank: 32
+      peft.target_modules: ["query", "key", "value", "attention.output.dense", "intermediate.dense", "output.dense"]
+      peft.allocation_update_frequency: 200
+      peft.temperature: 1.0
+      training.learning_rate: 2e-4
+      experiment_name: "Afro-XLM-R Progressive Linear"
+
+  - name: "afro_xlmr_progressive_fixed"
+    description: "Progressive fixed rank (budget-based, constant global rank)"
+    peft_method: "progressive"
+    scientific_role: "ablation_study"
+    priority: 5
+    expected_compute_hours: 0.6
+    config_overrides:
+      peft.method: "progressive"
+      peft.allocation_strategy: "budget"
+      peft.rank_schedule: "fixed"
+      peft.optimize_hyperparams: false
+      peft.initial_rank: 8
+      peft.final_rank: 8
+      peft.min_rank: 2
+      peft.max_rank: 32
+      peft.target_modules: ["query", "key", "value", "attention.output.dense", "intermediate.dense", "output.dense"]
+      peft.allocation_update_frequency: 200
+      peft.temperature: 1.0
+      training.learning_rate: 2e-4
+      experiment_name: "Afro-XLM-R Progressive Fixed"
+
+  # --- Structure-Adaptive Progressive (SAP-PEFT) ---
+  - name: "afro_xlmr_sap_peft"
+    description: "Structure-Adaptive Progressive PEFT (SAP-PEFT)"
+    peft_method: "progressive"
+    scientific_role: "experimental_novel"
+    priority: 1
+    expected_compute_hours: 0.6
+    config_overrides:
+      peft.method: "progressive"
+      peft.allocation_strategy: "structure"
+      peft.optimize_hyperparams: false
+      peft.min_rank: 2
+      peft.max_rank: 32
+      peft.target_modules: ["query", "key", "value", "attention.output.dense", "intermediate.dense", "output.dense"]
+      peft.allocation_update_frequency: 200
+      peft.temperature: 1.0
+      peft.initial_rank: 8
+      training.learning_rate: 2e-4
+      experiment_name: "Afro-XLM-R SAP-PEFT"
+
+    # --- Dynamic rank baselines (DyLoRA, SaLoRA) ---
+  # - name: "afro_xlmr_dy_lora"
+  #   description: "DyLoRA - dynamic rank via uniform sampling"
+  #   peft_method: "dy_lora"
+  #   scientific_role: "experimental"
+  #   priority: 2
+  #   expected_compute_hours: 0.5
+  #   config_overrides:
+  #     peft.method: "dy_lora"
+  #     peft.optimize_hyperparams: false
+  #     peft.max_rank: 16
+  #     peft.min_rank: 2
+  #     peft.rank: 8  # base rank for budget equivalence
+  #     peft.target_modules: ["query", "key", "value", "attention.output.dense", "intermediate.dense", "output.dense"]
+  #     training.learning_rate: 2e-4
+  #     experiment_name: "Afro-XLM-R DyLoRA"
+
+  # - name: "afro_xlmr_sa_lora"
+  #   description: "SaLoRA - structure-aware pruning of rank"
+  #   peft_method: "sa_lora"
+  #   scientific_role: "experimental"
+  #   priority: 2
+  #   expected_compute_hours: 0.5
+  #   config_overrides:
+  #     peft.method: "sa_lora"
+  #     peft.optimize_hyperparams: false
+  #     peft.initial_rank: 16
+  #     peft.final_rank: 4
+  #     peft.prune_frequency: 500
+  #     peft.prune_ratio: 0.3
+  #     peft.target_modules: ["query", "key", "value", "attention.output.dense", "intermediate.dense", "output.dense"]
+  #     training.learning_rate: 2e-4
+  #     experiment_name: "Afro-XLM-R SaLoRA"
