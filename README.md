@@ -28,6 +28,8 @@ GPT-2) across two tasks (binary sentiment, 7-class news genre).
 scripts/
     run_baseline_comparison.py     entry point for baseline suites
     collect_kappa_mcc.py           kappa and MCC aggregation
+    run_beta_sweep.py              hyperparameter sweep orchestrator
+    extract_sweep_results.py       sweep result aggregator
     reproduce_all.ps1              end-to-end reproduction (PowerShell)
     scrub.ps1                      anonymization helper
     analysis/                      post-hoc analysis scripts
@@ -260,6 +262,44 @@ The script walks `<experiments-root>/**/experiment_results.json`,
 extracts `results.model_metrics.cohen_kappa` and
 `results.model_metrics.mcc` for each seed, and aggregates per
 experiment and method. It writes a CSV plus a LaTeX snippet.
+
+## Hyperparameter sweeps
+
+The paper's sensitivity table for the two EMA smoothing factors is
+produced by `scripts/run_beta_sweep.py`, which sweeps `peft.ema_beta`
+(`beta_1`, per-parameter EMA) and `peft.importance_smoothing`
+(`beta_2`, per-module EMA) for SAP-PEFT on both TiDG backbones.
+
+Run the full sweep:
+
+```bash
+python scripts/run_beta_sweep.py
+```
+
+Or restrict it to one axis and one backbone:
+
+```bash
+python scripts/run_beta_sweep.py --sweeps beta1 --backbones tiroberta
+```
+
+Arguments:
+- `--sweeps` (default: `beta1 beta2`): which axes to sweep
+- `--backbones` (default: `tiroberta afro_xlmr`): which backbone/task pairs
+- `--seeds` (default: `42 43 44 45 46`)
+- `--output-root` (default: `results/sweeps`)
+
+The sweep runs 5 methods × 5 seeds per axis-value on the selected
+backbones — roughly 60–90 minutes on an RTX 4090 per (backbone, axis).
+
+Once complete, aggregate into a CSV and a LaTeX snippet:
+
+```bash
+python scripts/extract_sweep_results.py
+```
+
+This writes `beta_sweep_results.csv` and prints LaTeX table rows to
+stdout. The script assumes the `results/sweeps/<backbone>/<axis>/<value>/`
+layout produced by `run_beta_sweep.py`.
 
 ## Analysis scripts
 

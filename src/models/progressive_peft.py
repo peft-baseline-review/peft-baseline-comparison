@@ -46,8 +46,8 @@ class GradientImportanceEstimator:
         self.beta = beta
         self.warmup_steps = warmup_steps
         self.step_count = 0
-        self.ema_buffer = {}               # per-parameter EMA
-        self.module_ema = {}                # per-module EMA (smoothed importance)
+        self.ema_buffer = {}               # per‑parameter EMA
+        self.module_ema = {}                # per‑module EMA (smoothed importance)
         self.ema_beta = ema_beta            # smoothing factor for module importance
 
     def update(self, model: nn.Module):
@@ -79,7 +79,8 @@ class GradientImportanceEstimator:
                 module_key = name.split(".lora_B")[0]
             else:
                 continue
-            module_scores[module_key].append(importance)
+            #module_scores[module_key].append(importance)
+            module_scores[module_key].append(self.ema_buffer[name])
 
         for module, scores in module_scores.items():
             if not scores:
@@ -236,7 +237,8 @@ class ProgressivePEFTWrapper(nn.Module):
 
         self.importance_estimator = GradientImportanceEstimator(
             beta=config.ema_beta,
-            warmup_steps=config.warmup_steps
+            warmup_steps=config.warmup_steps,
+            ema_beta=config.importance_smoothing,
         )
 
         self.allocator = ProgressiveRankAllocator(config)
