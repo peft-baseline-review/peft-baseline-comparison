@@ -54,7 +54,7 @@ baseline_methods:
       peft.initial_rank: 8          # total budget = 8 * num_modules
       peft.min_rank: 2
       peft.max_rank: 32
-      # TiroBERTa (RoBERTa-based) uses "out_proj" for attention output, not "attention.output.dense"
+      # TiroBERTa (RoBERTa-based) uses "attention.output.dense" for attention output, not "attention.output.dense"
       peft.target_modules: ["query", "key", "value", "attention.output.dense", "intermediate.dense", "output.dense"]
       peft.allocation_update_frequency: 200
       peft.temperature: 1.0
