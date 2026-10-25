@@ -1,7 +1,8 @@
 # config/peft.py - UPDATED WITH PROGRESSIVE FIELDS and v2 validators
 from .base import AllocationStrategy, BaseConfig, PEFTMethod, RankSchedule
 from typing import Optional, List, Dict, Any
-from pydantic import Field, field_validator, ValidationInfo 
+from pydantic import Field, field_validator, ValidationInfo
+from peft import TaskType as PEFTTaskType
 from enum import Enum
 
 class ImportanceMethod(str, Enum):
@@ -32,12 +33,17 @@ class PEFTConfig(BaseConfig):
     temperature: float = Field(default=1.0, ge=0.1, le=10.0, description="Softmax temperature for rank allocation")
     importance_smoothing: float = Field(default=0.99, ge=0.5, le=1.0, description="EMA factor for importance smoothing")
 
-    ema_beta: float = Field(default=0.9, ge=0.0, le=1.0, description="Per-parameter EMA factor")
+    ema_beta: float = Field(default=0.9, ge=0.0, le=1.0, description="Per‑parameter EMA factor")
 
     # Method-specific flags
     use_dora: bool = False
     lora_plus: bool = False
+    total_steps: int = Field(default=10000, ge=100, le=100000)
     gradient_checkpointing: bool = False
+
+    # AdaLora specific
+    adalora_init_rank: Optional[int] = None
+    adalora_target_rank: Optional[int] = None
     
     # QLoRA specific
     quant_type: str = "nf4"
@@ -108,11 +114,6 @@ class PEFTConfig(BaseConfig):
     @classmethod
     def validate_task_type(cls, v: str) -> str:
         """Validate task_type against PEFT's TaskType"""
-        try:
-            from peft import TaskType as PEFTTaskType
-        except ImportError:
-            # peft not installed - skip validation, assume caller knows
-            return v
         valid_types = [t.value for t in PEFTTaskType]
         if v not in valid_types:
             raise ValueError(f"task_type must be one of {valid_types}")

@@ -172,7 +172,7 @@ class ScientificEvaluator:
     ) -> Dict[str, Any]:
         """
         Enhanced classification evaluation with statistical rigor.
-        Fully atomic - NO model forward passes allowed.
+        Fully atomic — NO model forward passes allowed.
         """
         # Sanitize
         try:
@@ -603,7 +603,7 @@ class ScientificEvaluator:
         if not inference_stats or num_samples <= 0 or evaluation_time_seconds <= 0:
             return metrics
 
-        # Extract per-batch latencies (in seconds)
+        # Extract per‑batch latencies (in seconds)
         latencies = [x["latency"] for x in inference_stats if x]
         if not latencies:
             return metrics
@@ -611,7 +611,7 @@ class ScientificEvaluator:
         # Determine batch size from the first batch (all batches should have same size)
         batch_size = inference_stats[0].get("batch_size", 1)
 
-        # Per-sample latency in milliseconds
+        # Per‑sample latency in milliseconds
         per_sample_latency_ms = (np.mean(latencies) / batch_size) * 1000.0
         per_sample_latency_std_ms = (np.std(latencies) / batch_size) * 1000.0
 
@@ -647,7 +647,7 @@ class ScientificEvaluator:
 
                 energy_info = meter.measure_energy(
                     sample_batch,
-                    num_runs=1,
+                    num_runs=100,
                     batch_size=batch_size_from_batch,
                     measure_power=measure_power   # set to True if you want real power
                 )
@@ -755,7 +755,7 @@ class ScientificEvaluator:
         trainable_ratio = trainable_percentage / 100.0
         eff = max(1.0 - trainable_ratio, 1e-6)
 
-        # Use the correct key for latency (per-sample ms)
+        # Use the correct key for latency (per‑sample ms)
         latency_ms = efficiency_metrics.get('inference_time_mean_ms', 100.0)
         latency_ms = max(latency_ms, 1e-6)
         speed_factor = 1.0 / (1.0 + latency_ms)
@@ -1334,13 +1334,13 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
     def _provide_overall_recommendation(self, acc: float, pct: float, comp: float) -> str:
         if comp > 0.03:
-            return "Excellent trade-off - highly recommended"
+            return "Excellent trade-off – highly recommended"
         elif comp > 0.02:
-            return "Good trade-off - recommended"
+            return "Good trade-off – recommended"
         elif comp > 0.01:
-            return "Moderate trade-off - acceptable"
+            return "Moderate trade-off – acceptable"
         else:
-            return "Poor trade-off - consider alternatives"
+            return "Poor trade-off – consider alternatives"
 
     def _classify_inference_speed(self, time_ms: float) -> str:
         if time_ms < 10: return "Real-time capable"

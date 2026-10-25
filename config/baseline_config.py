@@ -4,8 +4,6 @@ Scientific Baseline Comparison Runner - PRODUCTION OPTIMIZED v3.2
 Fixed for Pydantic v2.10+ compatibility and Windows parallel execution
 """
 from pathlib import Path
-
-#from src.utils import logger
 PROJECT_ROOT = Path(__file__).parent.parent   # goes from config/ to project root
 
 import os
@@ -169,10 +167,9 @@ class BaselineRunnerConfig(BaseModel):
     
     def to_yaml(self, path: Union[str, Path]):
         """Save configuration to YAML file"""
-        with open(path, 'w', encoding='utf-8') as f:
-            data = self.model_dump(exclude_defaults=True)
-            yaml.dump(data, f, default_flow_style=False,
-                      sort_keys=False, allow_unicode=True)
+        with open(path, 'w') as f:
+            data = self.dict(exclude_defaults=True)
+            yaml.dump(data, f, default_flow_style=False, sort_keys=False)
 
 
 # ============================================================================
@@ -274,8 +271,8 @@ def _run_experiment(
     method_dir.mkdir(parents=True, exist_ok=True)
     
     config_path = method_dir / "config.yaml"
-    with open(config_path, 'w', encoding='utf-8') as f:
-        yaml.dump(method_config, f, default_flow_style=False, allow_unicode=True)
+    with open(config_path, 'w') as f:
+        yaml.dump(method_config, f, default_flow_style=False)
     
     start_time = datetime.now()
     timeout_hours = config.timeout_hours_per_experiment
@@ -355,7 +352,7 @@ def _run_experiment(
         return result
         
     except TimeoutException:
-        logger.error(f"â° Timeout: {method.name} (seed={seed}) exceeded {timeout_hours} hours")
+        logger.error(f"⏰ Timeout: {method.name} (seed={seed}) exceeded {timeout_hours} hours")
         return ExperimentResult(
             method_name=method.name,
             seed=seed,
@@ -371,7 +368,7 @@ def _run_experiment(
         )
         
     except Exception as e:
-        logger.error(f"âŒ {method.name} (seed={seed}) failed: {e}")
+        logger.error(f"❌ {method.name} (seed={seed}) failed: {e}")
         return ExperimentResult(
             method_name=method.name,
             seed=seed,
@@ -463,14 +460,14 @@ class ScientificBaselineRunner:
         )
         
         logger.info("=" * 80)
-        logger.info(f"SCIENTIFIC BASELINE RUNNER v3.2 (Platform: {self.platform})")
+        logger.info(f"🔬 SCIENTIFIC BASELINE RUNNER v3.2 (Platform: {self.platform})")
         logger.info("=" * 80)
-        logger.info(f" Output: {self.output_dir}")
-        logger.info(f"Methods: {len(self.baseline_methods)} (priority sorted)")
-        logger.info(f"Replications: {baseline_config.replication_count}")
-        logger.info(f"Estimated compute: {self.total_compute_hours_estimated:.1f} hours")
-        logger.info(f"Statistical tests: {baseline_config.statistical_analysis.statistical_tests}")
-        logger.info(f"Platform optimizations: {self.platform_optimizations}")
+        logger.info(f"📁 Output: {self.output_dir}")
+        logger.info(f"🧪 Methods: {len(self.baseline_methods)} (priority sorted)")
+        logger.info(f"🔁 Replications: {baseline_config.replication_count}")
+        logger.info(f"⏱️ Estimated compute: {self.total_compute_hours_estimated:.1f} hours")
+        logger.info(f"📊 Statistical tests: {baseline_config.statistical_analysis.statistical_tests}")
+        logger.info(f"💻 Platform optimizations: {self.platform_optimizations}")
         
         # Save configuration
         self._save_configuration()
@@ -495,7 +492,7 @@ class ScientificBaselineRunner:
                 abs_path = self.project_root / path if not path.is_absolute() else path
                 if abs_path.exists():
                     base_config_path = abs_path
-                    logger.info(f"Found base config at: {base_config_path}")
+                    logger.info(f"📁 Found base config at: {base_config_path}")
                     break
             else:
                 raise FileNotFoundError(
@@ -535,7 +532,7 @@ class ScientificBaselineRunner:
         # Sort by priority (highest first), then by expected compute time (shortest first)
         methods.sort(key=lambda m: (m.priority, m.expected_compute_hours))
         
-        logger.info(f"Method priority order:")
+        logger.info(f"📋 Method priority order:")
         for i, method in enumerate(methods, 1):
             logger.info(f"  {i:2d}. {method.name} (priority={method.priority}, est={method.expected_compute_hours}h)")
         
@@ -560,10 +557,10 @@ class ScientificBaselineRunner:
                 "random_seeds": str(self.random_seeds)
             })
             
-            logger.info("MLflow initialized")
+            logger.info("📊 MLflow initialized")
             return True
         except Exception as e:
-            logger.warning(f"MLflow initialization failed: {e}")
+            logger.warning(f"⚠️ MLflow initialization failed: {e}")
             return False
     
     def _save_configuration(self):
@@ -571,7 +568,7 @@ class ScientificBaselineRunner:
         config_save_path = self.output_dir / "runner_configuration.json"
         
         config_dict = {
-            "baseline_config": self.config.model_dump(),
+            "baseline_config": self.config.dict(),
             "random_seeds": self.random_seeds,
             "platform": self.platform,
             "platform_optimizations": self.platform_optimizations,
@@ -583,7 +580,7 @@ class ScientificBaselineRunner:
         with open(config_save_path, 'w') as f:
             json.dump(config_dict, f, indent=2, default=str)
         
-        logger.info(f"Configuration saved: {config_save_path}")
+        logger.info(f"💾 Configuration saved: {config_save_path}")
     
     def _get_git_info(self) -> Dict[str, str]:
         """Get git information for reproducibility"""
@@ -627,7 +624,7 @@ class ScientificBaselineRunner:
         return all(a[obj] <= b[obj] for obj in a.keys()) and any(a[obj] < b[obj] for obj in a.keys())
 
     def _pareto_frontier(self, points):
-        """Return list of indices of non-dominated points."""
+        """Return list of indices of non‑dominated points."""
         n = len(points)
         is_dominated = [False] * n
         for i in range(n):
@@ -637,19 +634,19 @@ class ScientificBaselineRunner:
                     break
         return [i for i in range(n) if not is_dominated[i]]
 
-    def _hypervolume_4d(self, points, ref_point=(0,0,0,0)):
+    def _hypervolume_4d(self, points, ref_point=(0,0,0,0), seed=42):
         """
         Approximate hypervolume via Monte Carlo sampling.
-        For exact 4D hypervolume, you could use `pygmo.hypervolume`.
+        Seeded for reproducibility: identical frontier inputs produce
+        identical HV output on every run.
         """
         import random
+        rng = random.Random(seed)
         samples = 100000
         ndims = len(ref_point)
-        # Generate random points in the box [0,1]^ndims
         count = 0
         for _ in range(samples):
-            p = [random.uniform(0, 1) for _ in range(ndims)]
-            # Check if p is dominated by any point in the frontier
+            p = [rng.uniform(0, 1) for _ in range(ndims)]
             dominated = False
             for fp in points:
                 if all(p[d] <= fp[d] for d in range(ndims)):
@@ -702,7 +699,7 @@ class ScientificBaselineRunner:
                         k_groups=n_groups
                     )
                 except Exception as e:
-                    logger.warning(f"ANOVA power calculation failed: {e}. Using t-test power as fallback.")
+                    logger.warning(f"ANOVA power calculation failed: {e}. Using t‑test power as fallback.")
                     anova_power_val = achieved_power
             else:
                 anova_power_val = float('nan')
@@ -726,8 +723,8 @@ class ScientificBaselineRunner:
             with open(power_path, 'w') as f:
                 json.dump(power_results, f, indent=2, default=str)
             
-            logger.info("Statistical Power Analysis:")
-            logger.info(f"  Achieved power: {achieved_power:.3f} ({'âœ... Adequate' if achieved_power >= 0.8 else 'âš ï¸ Low'})")
+            logger.info("📊 Statistical Power Analysis:")
+            logger.info(f"  Achieved power: {achieved_power:.3f} ({'✅ Adequate' if achieved_power >= 0.8 else '⚠️ Low'})")
             logger.info(f"  Required replications: {int(np.ceil(required_n))}")
             logger.info(f"  Current replications: {n_per_group}")
             
@@ -747,7 +744,7 @@ class ScientificBaselineRunner:
         """
         Run complete baseline comparison with adaptive resource management
         """
-        logger.info(" Starting systematic baseline comparison...")
+        logger.info("🚀 Starting systematic baseline comparison...")
         
         # Calculate statistical power
         power_analysis = self.calculate_statistical_power()
@@ -758,7 +755,7 @@ class ScientificBaselineRunner:
         else:
             max_workers = self.config.max_workers
         
-        logger.info(f"Adaptive scheduling: {max_workers} workers")
+        logger.info(f"🔧 Adaptive scheduling: {max_workers} workers")
         
         # Run experiments
         if parallel and max_workers > 1:
@@ -779,7 +776,7 @@ class ScientificBaselineRunner:
         if self.mlflow_enabled:
             self._log_to_mlflow(power_analysis)
         
-        logger.info("Baseline comparison completed successfully!")
+        logger.info("✅ Baseline comparison completed successfully!")
         
         return {
             "results": self.results,
@@ -806,7 +803,7 @@ class ScientificBaselineRunner:
             if self.is_windows:
                 workers = max(1, workers // 2)
             
-            logger.info(f" Resource check: CPU={cpu_count}, RAM={memory_gb:.1f}GB -> {workers} workers")
+            logger.info(f"💻 Resource check: CPU={cpu_count}, RAM={memory_gb:.1f}GB -> {workers} workers")
             return workers
         except Exception:
             return min(2, self.config.max_workers)
@@ -824,7 +821,7 @@ class ScientificBaselineRunner:
             output_dir=self.output_dir
         )
         
-        logger.info(f"Running {len(tasks)} experiments with {max_workers} workers")
+        logger.info(f"🔀 Running {len(tasks)} experiments with {max_workers} workers")
         
         with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
             future_to_task = {}
@@ -841,15 +838,15 @@ class ScientificBaselineRunner:
                         all_results[method_name] = []
                     all_results[method_name].append(result)
                     completed += 1
-                    status = "âœ..." if result.success else "âŒ"
+                    status = "✅" if result.success else "❌"
                     logger.info(
                         f"  {status} [{completed}/{len(tasks)}] {method_name} (seed={seed}): "
                         f"Acc={result.accuracy:.4f}, Time={result.training_time_hours:.2f}h"
                     )
                 except concurrent.futures.TimeoutError:
-                    logger.error(f" Result timeout: {method_name} (seed={seed})")
+                    logger.error(f"⏰ Result timeout: {method_name} (seed={seed})")
                 except Exception as e:
-                    logger.error(f"Failed to get result for {method_name}: {e}")
+                    logger.error(f"❌ Failed to get result for {method_name}: {e}")
         
         return all_results
     
@@ -865,7 +862,7 @@ class ScientificBaselineRunner:
                 result = self._run_single_experiment_local(method, seed)
                 method_results.append(result)
                 completed += 1
-                status = "âœ..." if result.success else "âŒ"
+                status = "✅" if result.success else "❌"
                 logger.info(
                     f"  {status} [{completed}/{total_experiments}] {method.name} (seed={seed}): "
                     f"Acc={result.accuracy:.4f}, Time={result.training_time_hours:.2f}h"
@@ -895,7 +892,7 @@ class ScientificBaselineRunner:
                 energies = [r.energy_per_sample_joules for r in successful]
                 params_m = [r.trainable_params / 1e6 for r in successful]   # millions
 
-                # Compute means and CIs (using t-distribution, fallback to mean if n<2)
+                # Compute means and CIs (using t‑distribution, fallback to mean if n<2)
                 def mean_ci(vals):
                     if len(vals) >= 2:
                         m = np.mean(vals)
@@ -939,7 +936,7 @@ class ScientificBaselineRunner:
             logger.info("Less than 2 methods, skipping pairwise tests.")
             return
 
-        # Build seed-indexed accuracy dictionaries for proper pairing
+        # Build seed‑indexed accuracy dictionaries for proper pairing
         method_acc_by_seed = {}
         for method_name, results in self.results.items():
             acc_by_seed = {}
@@ -948,7 +945,7 @@ class ScientificBaselineRunner:
                     acc_by_seed[r.seed] = r.accuracy
             method_acc_by_seed[method_name] = acc_by_seed
 
-        # Wilcoxon signed-rank test (seed-aligned)
+        # Wilcoxon signed‑rank test (seed‑aligned)
         wilcoxon_results = []
         for i in range(len(method_names)):
             for j in range(i+1, len(method_names)):
@@ -968,7 +965,7 @@ class ScientificBaselineRunner:
                 else:
                     logger.warning(f"Cannot perform Wilcoxon for {m1} vs {m2}: insufficient common successful seeds.")
 
-        # McNemar's test (unchanged, already seed-aware)
+        # McNemar's test (unchanged, already seed‑aware)
         mcnemar_results = []
         for i in range(len(method_names)):
             for j in range(i+1, len(method_names)):
@@ -989,8 +986,16 @@ class ScientificBaselineRunner:
                     c = np.sum((y_pred1 != y_true1) & (y_pred2 == y_true2))
                     d = np.sum((y_pred1 != y_true1) & (y_pred2 != y_true2))
                     table = [[a, b], [c, d]]
-                    result = mcnemar(table, exact=False, correction=True)
-                    p_values.append(result.pvalue)
+                    if b + c == 0:
+                        # Perfect agreement: no evidence of difference.
+                        # Do not call mcnemar() — the continuity-corrected chi2 divides
+                        # by zero and produces a spurious 0.0 (or NaN) that corrupts
+                        # the median.
+                        p = 1.0
+                    else:
+                        result = mcnemar(table, exact=False, correction=True)
+                        p = float(result.pvalue)
+                    p_values.append(p)
                 if p_values:
                     median_p = float(np.median(p_values))
                     mcnemar_results.append({
@@ -998,7 +1003,8 @@ class ScientificBaselineRunner:
                         'method2': m2,
                         'p_value_median': median_p,
                         'p_values_per_seed': p_values,
-                        'test': 'mcnemar'
+                        'test': 'mcnemar',
+                        'n_seeds_with_discordance': sum(1 for p in p_values if p < 1.0),
                     })
 
         # Combine p-values for Holm correction (rest unchanged)
@@ -1021,7 +1027,7 @@ class ScientificBaselineRunner:
         }
 
         # ------------------------------------------------------------
-        # Pareto Frontier Analysis (true multi-objective)
+        # Pareto Frontier Analysis (true multi‑objective)
         # ------------------------------------------------------------
         if len(method_names) >= 2:
             # Collect raw objectives for each method (mean across seeds)
@@ -1081,13 +1087,14 @@ class ScientificBaselineRunner:
             frontier_indices = [i for i in range(n) if not is_dominated[i]]
             frontier_methods = [method_names[i] for i in frontier_indices]
 
-            # Approximate hypervolume using Monte Carlo
+            # Approximate hypervolume using Monte Carlo (seeded for
+            # determinism — matches _hypervolume_4d's convention).
             import random
+            rng = random.Random(42)
             samples = 100000
             count = 0
             for _ in range(samples):
-                p = [random.uniform(0, 1) for _ in range(4)]
-                # Check if p is dominated by any frontier point
+                p = [rng.uniform(0, 1) for _ in range(4)]
                 dominated = False
                 for idx in frontier_indices:
                     fp = vectors[idx]
@@ -1110,7 +1117,7 @@ class ScientificBaselineRunner:
         analysis_path = self.output_dir / "statistical_analysis.json"
         with open(analysis_path, 'w') as f:
             json.dump(self.comparison_results, f, indent=2, default=str)
-        logger.info(f"Statistical analysis saved: {analysis_path}")
+        logger.info(f"📊 Statistical analysis saved: {analysis_path}")
     
     def _generate_reports(self):
         """Generate comprehensive reports""" 
@@ -1119,10 +1126,10 @@ class ScientificBaselineRunner:
         for method_name, data in self.comparison_results.get("performance_summary", {}).items():
             summary_data.append({
                 "Method": method_name,
-                "Accuracy": f"{data['accuracy_mean']:.4f} Â± {data['accuracy_ci_width']:.4f}",
-                "F1 (weighted)": f"{data['f1_mean']:.4f} Â± {data['f1_ci_width']:.4f}",
-                "Latency (ms)": f"{data['latency_mean_ms']:.2f} Â± {data['latency_ci_width']:.2f}",
-                "Energy (J)": f"{data['energy_mean_j']:.3f} Â± {data['energy_ci_width']:.3f}",
+                "Accuracy": f"{data['accuracy_mean']:.4f} ± {data['accuracy_ci_width']:.4f}",
+                "F1 (weighted)": f"{data['f1_mean']:.4f} ± {data['f1_ci_width']:.4f}",
+                "Latency (ms)": f"{data['latency_mean_ms']:.2f} ± {data['latency_ci_width']:.2f}",
+                "Energy (J)": f"{data['energy_mean_j']:.3f} ± {data['energy_ci_width']:.3f}",
                 "Params (M)": f"{data['params_millions']:.2f}",
                 "Efficiency (%)": f"{data['efficiency_mean']:.2f}",
                 "Composite": f"{data['composite_mean']:.4f}",
@@ -1144,7 +1151,7 @@ class ScientificBaselineRunner:
         self._generate_markdown_report(df_summary)
         self._create_visualizations()
         
-        logger.info(f" Reports saved to {self.output_dir}")
+        logger.info(f"📄 Reports saved to {self.output_dir}")
     
     def _generate_markdown_report(self, df_summary: pd.DataFrame):
         """Generate comprehensive markdown report with full performance table."""
@@ -1178,27 +1185,27 @@ class ScientificBaselineRunner:
             pt = self.comparison_results['pairwise_tests']
 
             if pt.get('wilcoxon'):
-                report += "### Wilcoxon Signed-Rank Test (Accuracy)\n\n"
-                report += "| Method 1 | Method 2 | Statistic | p-value | Corrected p | Significant |\n"
+                report += "### Wilcoxon Signed‑Rank Test (Accuracy)\n\n"
+                report += "| Method 1 | Method 2 | Statistic | p‑value | Corrected p | Significant |\n"
                 report += "|----------|----------|-----------|---------|-------------|-------------|\n"
                 for res in pt['wilcoxon']:
-                    sig = "âœ..." if res['significant'] else "âŒ"
+                    sig = "✅" if res['significant'] else "❌"
                     report += f"| {res['method1']} | {res['method2']} | {res['statistic']:.3f} | {res['p_value']:.4f} | {res['p_value_corrected']:.4f} | {sig} |\n"
 
             if pt.get('mcnemar'):
                 report += "\n### McNemar's Test (Prediction Agreement)\n\n"
-                report += "| Method 1 | Method 2 | Median p-value | Corrected p | Significant |\n"
+                report += "| Method 1 | Method 2 | Median p‑value | Corrected p | Significant |\n"
                 report += "|----------|----------|----------------|-------------|-------------|\n"
                 for res in pt['mcnemar']:
-                    sig = "âœ..." if res['significant'] else "âŒ"
+                    sig = "✅" if res['significant'] else "❌"
                     report += f"| {res['method1']} | {res['method2']} | {res['p_value_median']:.4f} | {res['p_value_corrected']:.4f} | {sig} |\n"
 
         # Pareto Frontier Analysis (if available)
         if 'pareto_frontier' in self.comparison_results:
             pf = self.comparison_results['pareto_frontier']
             report += "\n## Pareto Frontier Analysis\n\n"
-            report += f"- **Hypervolume** (4-dimensional): {pf['hypervolume']:.4f}\n"
-            report += "- **Pareto-optimal methods**: " + ", ".join(pf['frontier_methods']) + "\n\n"
+            report += f"- **Hypervolume** (4‑dimensional): {pf['hypervolume']:.4f}\n"
+            report += "- **Pareto‑optimal methods**: " + ", ".join(pf['frontier_methods']) + "\n\n"
             report += "Normalized objectives (higher is better):\n\n"
             report += "| Method | Accuracy | Param Efficiency | Speed | Memory Efficiency |\n"
             report += "|--------|----------|------------------|-------|-------------------|\n"
@@ -1237,25 +1244,25 @@ class ScientificBaselineRunner:
             f.write(report)
     
     def _create_visualizations(self):
-        """Create a comprehensive visualization suite for baseline comparison (Q1-grade)."""
+        """Create a comprehensive visualization suite for baseline comparison (Q1‑grade)."""
         try:
             import matplotlib.pyplot as plt
             import seaborn as sns
             from scipy.stats import gaussian_kde
             import pandas as pd
 
-            # Set publication-ready style
+            # Set publication‑ready style
             plt.style.use('seaborn-v0_8-whitegrid')
             sns.set_context("paper", font_scale=1.2)
             sns.set_palette("husl")
 
-            # Prepare data: seed-indexed accuracy and efficiency
+            # Prepare data: seed‑indexed accuracy and efficiency
             method_names = list(self.results.keys())
             if len(method_names) < 2:
                 logger.warning("Less than two methods, skipping most visualizations.")
                 return
 
-            # Build seed-indexed dictionaries for accurate pairing
+            # Build seed‑indexed dictionaries for accurate pairing
             acc_by_seed = {}
             eff_by_seed = {}
             comp_by_seed = {}
@@ -1264,7 +1271,7 @@ class ScientificBaselineRunner:
                 eff_by_seed[m] = {r.seed: r.trainable_percentage for r in self.results[m] if r.success}
                 comp_by_seed[m] = {r.seed: r.composite_score for r in self.results[m] if r.success}
 
-            # Compute per-method means and stds for summary plots
+            # Compute per‑method means and stds for summary plots
             acc_means = [np.mean(list(acc_by_seed[m].values())) for m in method_names]
             acc_stds = [np.std(list(acc_by_seed[m].values())) if len(acc_by_seed[m]) > 1 else 0 for m in method_names]
             eff_means = [np.mean(list(eff_by_seed[m].values())) for m in method_names]
@@ -1352,7 +1359,7 @@ class ScientificBaselineRunner:
                     plt.close()
 
             # -------------------------------
-            # 4. P-Value Heatmap with Significance Stars
+            # 4. P‑Value Heatmap with Significance Stars
             # -------------------------------
             if 'pairwise_tests' in self.comparison_results:
                 pt = self.comparison_results['pairwise_tests']
@@ -1387,7 +1394,7 @@ class ScientificBaselineRunner:
                         else:
                             return 'n.s.'
 
-                    # Create annotation matrix with p-value and star
+                    # Create annotation matrix with p‑value and star
                     annot_matrix = pval_matrix.applymap(lambda p: f"{p:.3f}\n{star(p)}" if not pd.isna(p) else "")
                     fig, ax = plt.subplots(figsize=(9, 7))
                     sns.heatmap(pval_matrix, annot=annot_matrix, fmt='', cmap='Reds_r',
@@ -1410,7 +1417,7 @@ class ScientificBaselineRunner:
                 y = np.mean(list(acc_by_seed[m].values()))
                 ax.scatter(x, y, s=100, label=m, alpha=0.7, edgecolors='black', linewidth=1)
                 ax.text(x, y, m, fontsize=9, ha='center', va='bottom')
-                # Add error bars (mean Â± std)
+                # Add error bars (mean ± std)
                 xerr = np.std(list(eff_by_seed[m].values())) if len(eff_by_seed[m]) > 1 else 0
                 yerr = np.std(list(acc_by_seed[m].values())) if len(acc_by_seed[m]) > 1 else 0
                 ax.errorbar(x, y, xerr=xerr, yerr=yerr, fmt='none', ecolor='gray', capsize=3, alpha=0.5)
@@ -1459,7 +1466,7 @@ class ScientificBaselineRunner:
                                     color=['red', 'gray'], ax=ax, linewidth=2, alpha=0.7)
                 ax.set_xticklabels(['Accuracy', 'Param Efficiency', 'Speed', 'Memory Efficiency'])
                 ax.set_ylabel('Normalized Value (higher is better)')
-                ax.set_title('Pareto Frontier - Parallel Coordinates')
+                ax.set_title('Pareto Frontier – Parallel Coordinates')
                 ax.legend(loc='upper right')
                 plt.tight_layout()
                 plt.savefig(self.output_dir / "pareto_parallel.png", dpi=300, bbox_inches='tight')
@@ -1521,7 +1528,7 @@ class ScientificBaselineRunner:
             plt.savefig(self.output_dir / "energy_scatter.pdf", bbox_inches='tight')
             plt.close()
 
-            logger.info(f" All visualizations saved to {self.output_dir}")
+            logger.info(f"📊 All visualizations saved to {self.output_dir}")
 
         except Exception as e:
             logger.warning(f"Failed to create visualizations: {e}")
@@ -1627,13 +1634,13 @@ if __name__ == "__main__":
             seeds=seed_list
         )
         print(f"\n{'='*80}")
-        print(f"BASELINE COMPARISON COMPLETED!")
+        print(f"✅ BASELINE COMPARISON COMPLETED!")
         print(f"{'='*80}")
-        print(f"Success rate: {results['summary']['success_rate']*100:.1f}%")
-        print(f"Results saved to: {results['summary'].get('output_dir', 'N/A')}")
-        print(f"Reports available in the output directory")
+        print(f"📊 Success rate: {results['summary']['success_rate']*100:.1f}%")
+        print(f"📁 Results saved to: {results['summary'].get('output_dir', 'N/A')}")
+        print(f"📄 Reports available in the output directory")
     except Exception as e:
-        print(f"\nBASELINE COMPARISON FAILED!")
+        print(f"\n❌ BASELINE COMPARISON FAILED!")
         print(f"Error: {e}")
         import traceback
         traceback.print_exc()

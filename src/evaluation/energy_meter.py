@@ -1,6 +1,6 @@
 """
 Energy Meter for Neural Network Inference
-- Platform-aware: Windows → theoretical estimation, Linux → optional NVML power monitoring
+- Platform‑aware: Windows → theoretical estimation, Linux → optional NVML power monitoring
 - Accurate FLOPs counting (thop + analytical fallback)
 - Configurable energy per FLOP, memory overhead, carbon intensity
 - Correct unit conversions (joules → kWh → carbon)
@@ -69,7 +69,7 @@ class EnergyMeter:
             enable_power_measurement
             and device.type == "cuda"
             and PYNVML_AVAILABLE
-        )  # No platform check - NVML works on Windows
+        )  # No platform check – NVML works on Windows
 
         self.nvml_handle = None
         self.idle_power = None
@@ -104,8 +104,8 @@ class EnergyMeter:
     # ----------------------------------------------------------------------
     def compute_flops(self, sample_input: Union[torch.Tensor, Dict]) -> float:
         """
-        Analytical + LoRA-aware FLOPs computation.
-        Stable, deterministic, and rank-aware. Handles complex PEFT structures safely.
+        Analytical + LoRA‑aware FLOPs computation.
+        Stable, deterministic, and rank‑aware. Handles complex PEFT structures safely.
         """
         # -------------------------------------------------
         # 1️⃣ Extract sequence length
@@ -145,7 +145,7 @@ class EnergyMeter:
                             rank, in_features, out_features = shapes
                             lora_flops += seq_len * rank * (in_features + out_features)
                         else:
-                            logger.debug(f"Skipping LoRA adapter {key} in module {module.__class__.__name__} - cannot extract shapes.")
+                            logger.debug(f"Skipping LoRA adapter {key} in module {module.__class__.__name__} – cannot extract shapes.")
                 else:
                     # Single adapter
                     shapes = self._safe_get_lora_shapes(module.lora_A, module.lora_B)
@@ -153,7 +153,7 @@ class EnergyMeter:
                         rank, in_features, out_features = shapes
                         lora_flops += seq_len * rank * (in_features + out_features)
                     else:
-                        logger.debug(f"Skipping LoRA adapter in module {module.__class__.__name__} - cannot extract shapes.")
+                        logger.debug(f"Skipping LoRA adapter in module {module.__class__.__name__} – cannot extract shapes.")
 
         total_flops = float(base_flops + lora_flops)
         return total_flops
@@ -177,7 +177,7 @@ class EnergyMeter:
                 # This is less precise because rank might not be directly available.
                 # For LoRA, rank is typically min(in_features, out_features) but that's an approximation.
                 # Better to skip or use a default rank? We'll skip for safety.
-                logger.debug(f"LoRA module missing weight attribute but has in/out features - skipping.")
+                logger.debug(f"LoRA module missing weight attribute but has in/out features – skipping.")
                 return None
             else:
                 return None
@@ -230,7 +230,7 @@ class EnergyMeter:
         """
         Accurate FLOPs estimation for transformer models.
         Formula: FLOPs = num_layers * (11 * d_model^2 * seq_len + 2 * d_model * seq_len^2)
-        Verified against known values (BERT-base 128 → ~22.5 GFLOPs).
+        Verified against known values (BERT‑base 128 → ~22.5 GFLOPs).
         """
         # Determine sequence length
         if isinstance(sample_input, dict):
@@ -253,7 +253,7 @@ class EnergyMeter:
 
         num_layers = getattr(self.model.config, 'num_hidden_layers', 12)
 
-        # Accurate inference FLOPs (multiply-adds counted as 1 FLOP each)
+        # Accurate inference FLOPs (multiply‑adds counted as 1 FLOP each)
         flops_per_layer = 11 * d_model * d_model * seq_len + 2 * d_model * seq_len * seq_len
         total_flops = num_layers * flops_per_layer
 
@@ -278,7 +278,7 @@ class EnergyMeter:
         Args:
             sample_batch: one batch of inputs (dictionary of tensors)
             num_runs: number of forward passes to average over (for power measurement)
-            batch_size: number of samples in the batch (for per-sample metrics)
+            batch_size: number of samples in the batch (for per‑sample metrics)
             measure_power: if True, attempt actual power measurement (only on Linux/NVML)
 
         Returns:
@@ -328,9 +328,16 @@ class EnergyMeter:
     def _measure_energy_nvml(self, sample_batch, num_runs: int) -> float:
         """Run multiple inferences and measure cumulative energy via NVML."""
         try:
+            # Warmup — stabilise GPU thermal state
+            with torch.no_grad():
+                for _ in range(50):
+                    self._forward(sample_batch)
+            if self.device.type == 'cuda':
+                torch.cuda.synchronize()
+            import time; time.sleep(2.0)   # let queued kernels drain
+
             # Get starting energy (millijoules)
             start_energy = pynvml.nvmlDeviceGetTotalEnergyConsumption(self.nvml_handle)
-
             with torch.no_grad():
                 for _ in range(num_runs):
                     self._forward(sample_batch)

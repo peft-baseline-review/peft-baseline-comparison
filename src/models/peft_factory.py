@@ -158,7 +158,7 @@ class TargetModuleResolver:
                 if method in model_config.target_modules:
                     modules = TargetModuleResolver._ensure_list(model_config.target_modules[method])
                     logger.info(f"Using model_config.target_modules['{method}']: {modules}")
-                    return modules   # No normalization - rely on substring matching
+                    return modules   # No normalization – rely on substring matching
             elif isinstance(model_config.target_modules, list):
                 modules = TargetModuleResolver._ensure_list(model_config.target_modules)
                 logger.info(f"Using model_config.target_modules (list): {modules}")
@@ -669,7 +669,7 @@ class PEFTModelFactory:
         except AttributeError:
             torch_dtype = torch.float32
 
-        # Load base model (handle GPT-2 specially)
+        # Load base model (handle GPT‑2 specially)
         if "gpt2" in model_config.name.lower():
             tokenizer = AutoTokenizer.from_pretrained(model_config.name)
             if tokenizer.pad_token is None:
@@ -750,7 +750,7 @@ class PEFTModelFactory:
         # Determine target modules (same logic as for LoRA)
         target_modules = peft_config.target_modules
         if target_modules is None or target_modules == ["auto"]:
-            # Auto-detect on the raw model
+            # Auto‑detect on the raw model
             raw_modules = AutoDetectTargetModuleResolver.resolve(model, "lora")
             raw_modules = AdaptiveArchitecturePriorV2.apply(model_config, raw_modules)
             target_modules = AdaptiveScientificTargetPolicy.filter("lora", raw_modules)
@@ -891,10 +891,28 @@ class PEFTModelFactory:
             elif method == "adalora":
                 # Use total_steps from config with fallback
                 total_steps = getattr(peft_config, 'total_steps', 10000)
+
+                # New optional fields enable the native dynamic pruning
+                # schedule. If unset, fall back to fixed-rank behavior
+                # (identical to the previous implementation).
+                _init_r = getattr(peft_config, 'adalora_init_rank', None)
+                _target_r = getattr(peft_config, 'adalora_target_rank', None)
+                _init_r = adaptive_rank if _init_r is None else int(_init_r)
+                _target_r = adaptive_rank if _target_r is None else int(_target_r)
+                if _init_r < _target_r:
+                    raise ValueError(
+                        f"AdaLoRA: adalora_init_rank ({_init_r}) < "
+                        f"adalora_target_rank ({_target_r}); "
+                        f"init_r must be >= target_r."
+                    )
+                logger.info(
+                    f"[AdaLoRA] init_r={_init_r}, target_r={_target_r}, "
+                    f"total_step={total_steps}"
+                )
                 config = AdaLoraConfig(
                     task_type=TaskType.SEQ_CLS,
-                    target_r=adaptive_rank,
-                    init_r=adaptive_rank,
+                    target_r=_target_r,
+                    init_r=_init_r,
                     lora_alpha=peft_config.alpha if peft_config.alpha is not None else 16,
                     lora_dropout=peft_config.dropout if peft_config.dropout is not None else 0.1,
                     target_modules=target_modules,
@@ -952,7 +970,7 @@ class PEFTModelFactory:
         if peft_config.modules_to_not_convert is not None:
             modules_to_not_convert = peft_config.modules_to_not_convert
         else:
-            # Architecture-specific defaults
+            # Architecture‑specific defaults
             if "roberta" in model_config.name.lower() or model_config.architecture.lower() == "roberta":
                 modules_to_not_convert = ["classifier"]
             elif "gpt2" in model_config.name.lower():
@@ -1123,7 +1141,7 @@ class PEFTModelFactory:
         # ------------------------------------------------------------------
         # After computing adaptive_rank
         if peft_config.allocation_strategy == "structure" or peft_config.rank_schedule == "fixed":
-            # No thermostat scaling - use the adaptive rank as the constant global budget
+            # No thermostat scaling – use the adaptive rank as the constant global budget
             init_rank = adaptive_rank
             final_rank = adaptive_rank
             logger.info(f"[ProgressiveSetup] Fixed budget mode: rank={adaptive_rank}")
