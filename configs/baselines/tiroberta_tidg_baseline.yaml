@@ -1,5 +1,5 @@
 # ============================================================================
-# Complete TiroBERTa Baseline on TiDG (7-class genre)
+# Complete TiroBERTa Baseline on TiDG (7‑class genre)
 # ============================================================================
 
 base_config: "configs/experiments/tiroberta_tidg_base.yaml"
@@ -73,7 +73,7 @@ baseline_methods:
       peft.method: "lora"
       peft.optimize_hyperparams: false
       peft.rank: 8
-      peft.target_modules: ["query", "key", "value", "out_proj"]
+      peft.target_modules: ["query", "key", "value", "attention.output.dense"]
       training.learning_rate: 2e-4
       experiment_name: "TiroBERTa TiDG LoRA"
 
@@ -88,7 +88,7 @@ baseline_methods:
       peft.use_dora: true
       peft.optimize_hyperparams: false
       peft.rank: 8
-      peft.target_modules: ["query", "key", "value", "out_proj"]
+      peft.target_modules: ["query", "key", "value", "attention.output.dense"]
       training.learning_rate: 2e-4
       experiment_name: "TiroBERTa TiDG DoRA"
 
@@ -102,12 +102,12 @@ baseline_methods:
       peft.method: "adalora"
       peft.optimize_hyperparams: false
       peft.rank: 8
-      peft.target_modules: ["query", "key", "value", "out_proj", "intermediate.dense", "output.dense"]
+      peft.target_modules: ["query", "key", "value", "attention.output.dense", "intermediate.dense", "output.dense"]
       training.learning_rate: 2e-4
       experiment_name: "TiroBERTa TiDG AdaLoRA"
 
   - name: "tiroberta_tidg_progressive_adaptive"
-    description: "Progressive PEPT adaptive schedule (budget-based)"
+    description: "Progressive PEPT adaptive schedule (budget‑based)"
     peft_method: "progressive"
     scientific_role: "experimental_novel"
     priority: 1
@@ -121,14 +121,14 @@ baseline_methods:
       peft.final_rank: 16
       peft.min_rank: 2
       peft.max_rank: 32
-      peft.target_modules: ["query", "key", "value", "out_proj", "intermediate.dense", "output.dense"]
+      peft.target_modules: ["query", "key", "value", "attention.output.dense", "intermediate.dense", "output.dense"]
       peft.allocation_update_frequency: 200
       peft.temperature: 1.0
       training.learning_rate: 2e-4
       experiment_name: "TiroBERTa TiDG Progressive Adaptive"
 
   - name: "tiroberta_tidg_progressive_linear"
-    description: "Progressive PEPT linear ablation (budget-based)"
+    description: "Progressive PEPT linear ablation (budget‑based)"
     peft_method: "progressive"
     scientific_role: "ablation_study"
     priority: 5
@@ -142,14 +142,14 @@ baseline_methods:
       peft.final_rank: 16
       peft.min_rank: 2
       peft.max_rank: 32
-      peft.target_modules: ["query", "key", "value", "out_proj", "intermediate.dense", "output.dense"]
+      peft.target_modules: ["query", "key", "value", "attention.output.dense", "intermediate.dense", "output.dense"]
       peft.allocation_update_frequency: 200
       peft.temperature: 1.0
       training.learning_rate: 2e-4
       experiment_name: "TiroBERTa TiDG Progressive Linear"
 
   - name: "tiroberta_tidg_progressive_fixed"
-    description: "Progressive fixed rank (budget-based)"
+    description: "Progressive fixed rank (budget‑based)"
     peft_method: "progressive"
     scientific_role: "ablation_study"
     priority: 5
@@ -163,14 +163,14 @@ baseline_methods:
       peft.final_rank: 8
       peft.min_rank: 2
       peft.max_rank: 32
-      peft.target_modules: ["query", "key", "value", "out_proj", "intermediate.dense", "output.dense"]
+      peft.target_modules: ["query", "key", "value", "attention.output.dense", "intermediate.dense", "output.dense"]
       peft.allocation_update_frequency: 200
       peft.temperature: 1.0
       training.learning_rate: 2e-4
       experiment_name: "TiroBERTa TiDG Progressive Fixed"
 
   - name: "tiroberta_tidg_sap_peft"
-    description: "Structure-Adaptive Progressive PEFT (SAP-PEFT)"
+    description: "Structure‑Adaptive Progressive PEFT (SAP‑PEFT)"
     peft_method: "progressive"
     scientific_role: "experimental_novel"
     priority: 1
@@ -182,7 +182,7 @@ baseline_methods:
       peft.optimize_hyperparams: false
       peft.min_rank: 2
       peft.max_rank: 32
-      peft.target_modules: ["query", "key", "value", "out_proj", "intermediate.dense", "output.dense"]
+      peft.target_modules: ["query", "key", "value", "attention.output.dense", "intermediate.dense", "output.dense"]
       peft.allocation_update_frequency: 200
       peft.temperature: 1.0
       training.learning_rate: 2e-4
@@ -190,7 +190,7 @@ baseline_methods:
 
   #   # --- Dynamic rank baselines (DyLoRA, SaLoRA) ---
   # - name: "tiroberta_tidg_dy_lora"   # or tiroberta_tidg_dy_lora for the other
-  #   description: "DyLoRA - dynamic rank via uniform sampling"
+  #   description: "DyLoRA – dynamic rank via uniform sampling"
   #   peft_method: "dy_lora"
   #   scientific_role: "experimental"
   #   priority: 2
@@ -201,12 +201,12 @@ baseline_methods:
   #     peft.max_rank: 16
   #     peft.min_rank: 2
   #     peft.rank: 8
-  #     peft.target_modules: ["query", "key", "value", "out_proj", "intermediate.dense", "output.dense"]
+  #     peft.target_modules: ["query", "key", "value", "attention.output.dense", "intermediate.dense", "output.dense"]
   #     training.learning_rate: 2e-4
   #     experiment_name: "TiroBERTa DyLoRA"
 
   # # - name: "tiroberta_tidg_sa_lora"   # or tiroberta_tidg_sa_lora
-  # #   description: "SaLoRA - structure-aware pruning of rank"
+  # #   description: "SaLoRA – structure‑aware pruning of rank"
   # #   peft_method: "sa_lora"
   # #   scientific_role: "experimental"
   # #   priority: 2
@@ -218,6 +218,6 @@ baseline_methods:
   # #     peft.final_rank: 4
   # #     peft.prune_frequency: 500
   # #     peft.prune_ratio: 0.3
-  # #     peft.target_modules: ["query", "key", "value", "out_proj", "intermediate.dense", "output.dense"]
+  # #     peft.target_modules: ["query", "key", "value", "attention.output.dense", "intermediate.dense", "output.dense"]
   # #     training.learning_rate: 2e-4
   # #     experiment_name: "TiroBERTa SaLoRA"
