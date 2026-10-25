@@ -47,6 +47,8 @@ if (-not $DryRun) {
 $pythonFiles = @(
     "scripts\run_baseline_comparison.py",
     "scripts\collect_kappa_mcc.py",
+    "scripts\run_beta_sweep.py",
+    "scripts\extract_sweep_results.py",
     "experiment_runner.py",
     "config\__init__.py",
     "config\base.py",
