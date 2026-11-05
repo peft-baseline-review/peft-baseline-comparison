@@ -1,0 +1,76 @@
+base_config: configs/experiments/sentiment_baseline.yaml
+optimization:
+  n_trials: 50
+  objectives:
+  - direction: maximize
+    name: accuracy
+    weight: 0.4
+  - direction: maximize
+    name: efficiency
+    weight: 0.3
+  - direction: minimize
+    name: latency
+    weight: 0.2
+  - direction: minimize
+    name: memory
+    weight: 0.1
+  optimization_type: single_objective
+  random_state: 42
+  study_name: peft_sentiment_sweep
+parallel:
+  backend: joblib
+  enabled: false
+  n_jobs: 4
+pruner:
+  enabled: true
+  n_startup_trials: 5
+  n_warmup_steps: 10
+  type: median
+results_dir: sweep_results
+sampler:
+  seed: 42
+  type: tpe
+save_pareto_front: true
+save_results: true
+search_space:
+  allocation_strategy_options:
+  - threshold
+  - top_k
+  - efficient
+  alpha_range:
+  - 4
+  - 64
+  base_method_options:
+  - lora
+  - dora
+  batch_sizes:
+  - 8
+  - 16
+  - 32
+  dropout_range:
+  - 0.0
+  - 0.3
+  final_rank_range:
+  - 8
+  - 32
+  initial_rank_range:
+  - 2
+  - 8
+  learning_rate_range:
+  - 1e-5
+  - 5e-4
+  methods:
+  - lora
+  - dora
+  - progressive
+  - qlora
+  num_epochs_range:
+  - 5
+  - 20
+  rank_range:
+  - 4
+  - 32
+  rank_schedule_options:
+  - linear
+  - adaptive
+  - step

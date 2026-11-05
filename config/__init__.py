@@ -6,14 +6,8 @@ Configuration factory for loading different config types with improved detection
 from pathlib import Path
 from typing import Union, Any, Dict, Optional
 import yaml
-
-
-def __getattr__(name):
-    """Defer peft-dependent imports until actually requested."""
-    if name in ("PEFTConfig", "ImportanceMethod"):
-        from .peft import PEFTConfig, ImportanceMethod
-        return {"PEFTConfig": PEFTConfig, "ImportanceMethod": ImportanceMethod}[name]
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+# config/__init__.py - Add import for ImportanceMethod
+from .peft import PEFTConfig, ImportanceMethod
 
 def detect_config_type(data: Dict[str, Any]) -> Optional[str]:
     """

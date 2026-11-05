@@ -1,0 +1,31 @@
+# configs/analysis/statistical.yaml
+enabled: ${features.statistical_analysis if features.statistical_analysis else false}
+output_dir: "${experiment_dir}/statistical_analysis"
+
+# Power analysis
+power_analysis:
+  enabled: true
+  effect_size: 0.5
+  alpha: 0.05
+  power: 0.8
+  min_trials_per_condition: 30
+
+# Statistical validation
+validation:
+  normality_tests: true
+  homogeneity_of_variance: true
+  confidence_intervals: true
+  bootstrap_samples: 1000
+  confidence_level: 0.95
+
+# Effect size calculation
+effect_size:
+  methods:
+    - cohens_d
+    - hedges_g
+    - glass_delta
+  interpretation_thresholds:
+    negligible: 0.2
+    small: 0.5
+    medium: 0.8
+    large: 1.0

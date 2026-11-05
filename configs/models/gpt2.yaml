@@ -1,0 +1,15 @@
+# configs/models/gpt2.yaml
+name: gpt2
+architecture: gpt2
+pretrained: true
+freeze_base: false
+torch_dtype: float32
+max_position_embeddings: 1024
+
+target_modules:
+  lora: ["c_attn"]
+  adalora: ["c_attn"]
+  ia3: ["c_attn"]
+  prefix: ["c_attn"]
+  prompt: ["wte"]
+  bitfit: ["bias"]

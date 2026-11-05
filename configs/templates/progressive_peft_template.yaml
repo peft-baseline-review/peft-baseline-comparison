@@ -1,0 +1,46 @@
+# configs/templates/progressive_peft_template.yaml
+# Progressive PEFT Configuration Template
+
+peft:
+  # Basic PEFT settings
+  method: "progressive"
+  task_type: "SEQ_CLS"
+  rank: 8
+  alpha: 16
+  dropout: 0.1
+  bias: "none"
+  target_modules: null
+  
+  # Progressive PEFT core
+  base_method: "lora"
+  initial_rank: 4
+  final_rank: 16
+  rank_schedule: "adaptive"  # linear, adaptive, exponential, step
+  allocation_strategy: "threshold"  # threshold, top_k, proportional, efficient
+  
+  # Training phases
+  warmup_epochs: 1
+  cooldown_epochs: 1
+  reset_optimizer_on_rank_change: false
+  
+  # Importance estimation
+  importance_method: "gradient_norm"  # gradient_norm, parameter_change, loss_contribution, fisher_information
+  importance_update_frequency: 25
+  importance_memory_size: 500
+  importance_threshold: 0.05
+  
+  # Allocation
+  allocation_update_frequency: 50
+  sparsity_target: 0.7
+  regularization_strength: 0.001
+  
+  # Monitoring
+  track_importance_distribution: true
+  save_importance_maps: false
+  log_frequency: 100
+  
+  # Performance
+  use_memory_efficient_importance: true
+  batch_importance_computation: true
+  importance_smoothing: 0.9
+  gradient_clip_norm: 1.0

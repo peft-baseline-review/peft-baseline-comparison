@@ -1,0 +1,22 @@
+# configs/models/xlm-roberta-base.yaml
+name: "xlm-roberta-base"
+architecture: "roberta"
+hidden_size: 768
+num_hidden_layers: 12
+num_attention_heads: 12
+intermediate_size: 3072
+max_position_embeddings: 512
+vocab_size: 250002
+pretrained: true
+freeze_base: false
+torch_dtype: "float32"
+target_modules:
+  lora: ["query", "key", "value", "output.dense"]
+  dora: ["query", "value", "output.dense"]
+  adalora: ["query", "value", "key", "output.dense", "intermediate.dense"]
+  prefix: ["key", "value"]
+  prompt: ["prompt_embeddings"]
+  ia3: ["key", "value", "output.dense", "intermediate.dense"]
+  progressive: ["query", "value", "key", "output.dense"]
+  qlora: ["query", "key", "value", "output.dense"]
+  bitfit: ["bias"]

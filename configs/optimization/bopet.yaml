@@ -1,0 +1,133 @@
+# configs/optimization/bopet.yaml
+# BOPET configuration for Hydra
+
+# Optimization settings
+n_trials: 30
+timeout: 3600
+alpha: 0.01
+study_name: ${experiment_name}
+storage: null  # sqlite:///bopet_studies.db for persistence
+load_if_exists: true
+random_state: 42
+
+# Sampler configuration
+sampler:
+  type: tpe  # Options: tpe, random, cmaes, nsgaii
+  seed: ${experiment.seed}
+
+# Pruner configuration
+pruning:
+  enabled: true
+  pruner: median  # Options: median, percentile, hyperband
+  n_startup_trials: 5
+  n_warmup_steps: 10
+  interval_steps: 1
+
+# Search space configuration
+search_space:
+  task_type: classification
+  methods: [lora, qlora, dora, prefix, prompt, ia3, adalora, progressive]
+  rank_range: [4, 64]
+  alpha_range: [4, 128]
+  dropout_range: [0.0, 0.3]
+  learning_rate_range: [1e-5, 5e-4]
+  num_train_epochs_range: [3, 15]
+  batch_sizes: [8, 16, 32, 64]
+  
+  # Method-specific parameters
+  method_specific:
+    qlora:
+      quant_types: [nf4, fp4]
+      double_quant: [true, false]
+    dora:
+      dora_init: [orthogonal, random]
+    prefix:
+      num_virtual_tokens_range: [10, 50]
+      prefix_projection: [true, false]
+    prompt:
+      num_virtual_tokens_range: [5, 30]
+    ia3:
+      target_modules_options: ["k_proj|v_proj", "q_proj|v_proj", "k_proj|v_proj|down_proj"]
+      feedforward_modules_options: ["down_proj", "output", "intermediate|output"]
+    adalora:
+      ada_r_options: [4, 8, 16]
+  
+  # LoRA target modules
+  lora_target_modules: ["q_proj|v_proj", "q_proj|v_proj|k_proj", "q_proj|v_proj|k_proj|o_proj"]
+
+# Parallel execution
+parallel:
+  enabled: false
+  n_jobs: -1
+  backend: joblib  # Options: joblib, ray
+
+# Output settings
+output:
+  save_results: true
+  save_pareto_front: true
+  results_dir: "${experiment_dir}/bopet_results"
+  
+# Default parameters for each method (for quick testing)
+default_params:
+  lora:
+    rank: 8
+    alpha: 16
+    dropout: 0.1
+    learning_rate: 2e-4
+    num_train_epochs: 10
+    batch_size: 16
+    target_modules: ["q_proj", "v_proj"]
+  qlora:
+    rank: 16
+    alpha: 32
+    dropout: 0.1
+    learning_rate: 2e-4
+    num_train_epochs: 10
+    batch_size: 8
+    quant_type: nf4
+    double_quant: true
+    target_modules: ["q_proj", "v_proj", "k_proj"]
+  dora:
+    rank: 8
+    alpha: 16
+    dropout: 0.05
+    learning_rate: 1e-4
+    num_train_epochs: 15
+    batch_size: 16
+    dora_init: orthogonal
+    target_modules: ["q_proj", "v_proj"]
+  prefix:
+    num_virtual_tokens: 20
+    prefix_projection: true
+    learning_rate: 1e-3
+    num_train_epochs: 10
+    batch_size: 16
+  prompt:
+    num_virtual_tokens: 20
+    learning_rate: 1e-3
+    num_train_epochs: 15
+    batch_size: 16
+  ia3:
+    learning_rate: 1e-3
+    num_train_epochs: 10
+    batch_size: 16
+    target_modules: ["k_proj", "v_proj", "down_proj"]
+    feedforward_modules: ["down_proj"]
+  adalora:
+    ada_r: 8
+    rank: 8
+    alpha: 16
+    dropout: 0.1
+    learning_rate: 2e-4
+    num_train_epochs: 10
+    batch_size: 16
+    target_modules: ["q_proj", "v_proj"]
+ 
+
+# Add progressive-specific parameters to method_specific:
+progressive:
+  base_method_options: [lora, dora, qlora]
+  initial_rank_range: [4, 16]
+  final_rank_range: [16, 64]
+  rank_schedule_options: [linear, adaptive, step]
+  allocation_strategy_options: [threshold, top_k, efficient]

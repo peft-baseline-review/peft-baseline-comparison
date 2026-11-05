@@ -1,0 +1,10 @@
+# DoRA configuration
+peft:
+  method: "dora"
+  rank: 8
+  alpha: 16
+  dropout: 0.1
+  target_modules: null
+  use_dora: true
+  quantization_enabled: false
+  bias: "none"

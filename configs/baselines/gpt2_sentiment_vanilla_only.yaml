@@ -42,4 +42,4 @@ baseline_methods:
       peft.method: "vanilla"
       peft.optimize_hyperparams: false
       training.learning_rate: 2e-5
-      experiment_name: "GPT-2 Vanilla"
+      experiment_name: "GPT‑2 Vanilla"

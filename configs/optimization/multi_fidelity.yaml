@@ -1,0 +1,68 @@
+# configs/optimization/multi_fidelity.yaml
+# Multi-Fidelity BOPET configuration for Hydra
+
+optimizer: multi_fidelity
+n_trials: 100
+timeout: 7200
+alpha: 0.01
+study_name: ${experiment_name}
+storage: null
+load_if_exists: true
+random_state: ${experiment.seed}
+
+# Sampler configuration
+sampler:
+  type: tpe
+  seed: ${experiment.seed}
+
+# Pruner configuration
+pruning:
+  enabled: true
+  pruner: median
+  n_startup_trials: 5
+  n_warmup_steps: 10
+  interval_steps: 1
+
+# Multi-fidelity specific settings
+multi_fidelity:
+  enabled: true
+  dimensions: [data_fraction, num_epochs, batch_size_reduction]
+  
+  # Fidelity levels
+  fidelity_levels:
+    data_fraction: [0.1, 0.25, 0.5, 0.75, 1.0]
+    num_epochs: [2, 4, 6, 8, 10]
+    batch_size_reduction: [0.25, 0.5, 0.75, 1.0]
+  
+  # Successive Halving
+  successive_halving:
+    enabled: true
+    min_budget: 1
+    max_budget: 5
+    reduction_factor: 3
+    aggressive_elimination: true
+  
+  # Early stopping criteria
+  early_stopping:
+    min_fidelity_level: 2
+    patience: 2
+    improvement_threshold: 0.01
+  
+  # Resource allocation
+  resource_allocation:
+    max_total_cost: 100
+    cost_weights:
+      data_fraction: 0.3
+      num_epochs: 0.4
+      batch_size_reduction: 0.3
+    adaptive_allocation: true
+  
+  # Transfer learning
+  transfer_learning:
+    enabled: true
+    warm_start: true
+    knowledge_transfer: true
+    source_fidelity_weight: 0.3
+
+# Search space (can override base)
+search_space: ${optimization.search_space}

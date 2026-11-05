@@ -1,0 +1,10 @@
+# LoRA configuration
+peft:
+  method: "lora"
+  rank: 8
+  alpha: 16
+  dropout: 0.1
+  target_modules: null   # inherited from model config
+  use_dora: false
+  quantization_enabled: false
+  bias: "none"

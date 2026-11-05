@@ -1,5 +1,5 @@
 # ============================================================
-# Afro-XLM-R Base Configuration for TiDG (7-class genre)
+# Afro‑XLM‑R Base Configuration for TiDG (7‑class genre)
 # ============================================================
 
 model: !include ../model/afro_xlmr.yaml

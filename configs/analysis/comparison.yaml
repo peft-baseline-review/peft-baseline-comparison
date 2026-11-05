@@ -1,0 +1,31 @@
+# configs/analysis/comparison.yaml
+enabled: ${features.comparison_analysis if features.comparison_analysis else false}
+output_dir: "${experiment_dir}/comparison_analysis"
+
+# Comparison settings
+comparison_types:
+  - methods  # Compare different PEFT methods
+  - models   # Compare different base models
+  - tasks    # Compare different tasks
+
+# Statistical analysis
+statistical:
+  significance_level: 0.05
+  multiple_test_correction: bonferroni
+  effect_size_threshold: 0.5
+  power_threshold: 0.8
+
+# Cross-validation
+cross_validation:
+  enabled: true
+  n_folds: 5
+  stratify: true
+
+# Visualization
+visualization:
+  generate_comparison_plots: true
+  plot_types:
+    - accuracy_vs_efficiency
+    - method_distribution
+    - statistical_significance
+    - power_analysis

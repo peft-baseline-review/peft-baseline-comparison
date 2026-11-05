@@ -362,6 +362,59 @@ class ScientificEvaluator:
             )
         return self.energy_meter
 
+    def _get_adalora_effective_counts(
+        self, model: nn.Module, nominal_trainable: int ) -> Optional[Dict[str, Any]]:
+        """
+        Return effective (post-pruning) AdaLoRA counts, or None for non-AdaLoRA models.
+
+        AdaLoRA keeps all init_r rows trainable (masked at forward time), so
+        requires_grad-based counts report the *nominal* peak-memory footprint,
+        not the *effective* inference-time parameter count.
+        """
+        try:
+            base = getattr(model, "base_model", model)
+            names = (model.__class__.__name__ + base.__class__.__name__).lower()
+            if "adalora" not in names:
+                return None
+            if not hasattr(base, "peft_config"):
+                return None
+
+            cfg = base.peft_config[list(base.peft_config)[0]]
+            rp = getattr(cfg, "rank_pattern", None) or {}
+            if not rp:
+                return None
+
+            active_units = sum(sum(mask) for mask in rp.values())
+            alloc = getattr(base, "rankallocator", None)
+            nominal_units = getattr(alloc, "init_bgt", None) if alloc else None
+            target_units  = getattr(alloc, "target_bgt", None) if alloc else None
+            if not nominal_units or nominal_units <= 0:
+                return None
+
+            # Classifier / modules_to_save copies are NOT pruned
+            classifier_params = sum(
+                p.numel() for n, p in model.named_parameters()
+                if p.requires_grad
+                and any(k in n for k in ("classifier", "score", "modules_to_save"))
+            )
+
+            nominal_adapter   = max(0, nominal_trainable - classifier_params)
+            pruning_ratio     = active_units / nominal_units
+            effective_adapter = int(round(nominal_adapter * pruning_ratio))
+            effective_total   = classifier_params + effective_adapter
+
+            return {
+                "effective_total":   effective_total,
+                "classifier_params": classifier_params,
+                "active_units":      int(active_units),
+                "nominal_units":     int(nominal_units),
+                "target_units":      int(target_units) if target_units else None,
+                "pruning_ratio":     float(pruning_ratio),
+            }
+        except Exception as e:
+            logger.warning(f"AdaLoRA effective-count computation failed: {e}")
+            return None
+
     # ----------------------------------------------------------------------
     # Bootstrap confidence intervals (refactored)
     # ----------------------------------------------------------------------
@@ -670,24 +723,59 @@ class ScientificEvaluator:
         accuracy = model_metrics.get('accuracy', 0.0) if model_metrics else 0.0
         accuracy_ci_lower = model_metrics.get('accuracy_ci_lower', accuracy) if model_metrics else accuracy
 
-        total_params = sum(p.numel() for p in model.parameters())
+        total_params     = sum(p.numel() for p in model.parameters())
         trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-        trainable_percentage = (trainable_params / total_params * 100) if total_params > 0 else 0
+        trainable_pct    = (trainable_params / total_params * 100) if total_params > 0 else 0.0
+
+        # --- AdaLoRA effective-count correction -------------------------------
+        adalora_info      = self._get_adalora_effective_counts(model, trainable_params)
+        nominal_trainable = trainable_params
+        nominal_pct       = trainable_pct
+        if adalora_info is not None:
+            trainable_params = adalora_info["effective_total"]
+            trainable_pct    = (trainable_params / total_params * 100) if total_params > 0 else 0.0
+            logger.info(
+                f"AdaLoRA effective params: {trainable_params:,} "
+                f"(nominal: {nominal_trainable:,}, "
+                f"active_units={adalora_info['active_units']}/"
+                f"{adalora_info['nominal_units']})"
+            )
+
+        trainable_percentage = trainable_pct
         trainable_safe = max(trainable_params, 1)
 
         efficiency = {
-            'total_params': float(total_params),
-            'trainable_params': float(trainable_params),
-            'trainable_percentage': float(trainable_percentage),
-            'frozen_params': float(total_params - trainable_params),
-            'params_per_accuracy_point': float(trainable_safe / (accuracy * 100 + 1e-6)),
-            'accuracy_per_million_params': float(accuracy * 1e6 / trainable_safe),
+            'total_params':                  float(total_params),
+            'trainable_params':              float(trainable_params),        # effective
+            'trainable_percentage':          float(trainable_percentage),    # effective
+            'trainable_params_nominal':      float(nominal_trainable),       # NEW
+            'trainable_percentage_nominal':  float(nominal_pct),             # NEW
+            'frozen_params':                 float(total_params - trainable_params),
+            'params_per_accuracy_point':     float(trainable_safe / (accuracy * 100 + 1e-6)),
+            'accuracy_per_million_params':   float(accuracy * 1e6 / trainable_safe),
             'conservative_params_per_accuracy': float(trainable_safe / (accuracy_ci_lower * 100 + 1e-6)),
-            'compression_ratio': float(total_params / trainable_safe),
-            'sparsity_ratio': float(1 - (trainable_safe / total_params)) if total_params > 0 else 0,
-            'bits_per_accuracy': float(np.log2(total_params) / (accuracy + 1e-6)),
-            'accuracy_density': float(accuracy / np.log1p(total_params)),
+            'compression_ratio':             float(total_params / trainable_safe),
+            'sparsity_ratio':                float(1 - (trainable_safe / total_params)) if total_params > 0 else 0,
+            'bits_per_accuracy':             float(np.log2(total_params) / (accuracy + 1e-6)),
+            'accuracy_density':              float(accuracy / np.log1p(total_params)),
         }
+
+        if adalora_info is not None:
+            efficiency['adalora_active_units']  = adalora_info['active_units']
+            efficiency['adalora_nominal_units'] = adalora_info['nominal_units']
+            efficiency['adalora_target_units']  = adalora_info['target_units']
+            efficiency['adalora_pruning_ratio'] = adalora_info['pruning_ratio']
+
+        # In evaluator.compute_efficiency_metrics, after AdaLoRA counts are computed:
+        if efficiency.get("adalora_pruning_ratio") is not None:
+            if efficiency["adalora_pruning_ratio"] > 0.99:
+                raise RuntimeError(
+                    f"AdaLoRA pruning did not fire: "
+                    f"active={efficiency['adalora_active_units']}, "
+                    f"nominal={efficiency['adalora_nominal_units']}, "
+                    f"ratio={efficiency['adalora_pruning_ratio']:.3f}. "
+                    f"Seed must be re-run or excluded."
+                )
 
         # Merge inference metrics
         if inference_metrics:

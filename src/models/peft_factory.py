@@ -408,7 +408,7 @@ class AdaptiveRankBudgetController:
         Prevents deeper models from receiving unfair parameter advantage.
     """
 
-    DEFAULT_TOTAL_RANK_BUDGET = 192  # reviewer-safe default
+    DEFAULT_TOTAL_RANK_BUDGET = 192  # safe default
 
     @staticmethod
     def compute_rank(

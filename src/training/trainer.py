@@ -1,6 +1,6 @@
 """
 BOPET Trainer for PEFT Models - Optimized for Scientific Research
-Enhanced for reproducibility, efficiency, and Q1 journal standards
+Enhanced for reproducibility, efficiency
 """
 
 import torch
@@ -42,6 +42,74 @@ logger = logging.getLogger(__name__)
 logging.getLogger("progressive_peft").setLevel(logging.INFO)
 
 
+import torch
+import warnings
+from peft.tuners.adalora import RankAllocator
+
+# Mute the non-deterministic warning caused by kthvalue parallel sorting on CUDA
+warnings.filterwarnings(
+    "ignore", 
+    message=".*kthvalue CUDA does not have a deterministic implementation.*"
+)
+
+# --- FIX 1: Resolve the Parameter Prefix Mismatch ---
+def patched_element_score(self, n):
+    import torch as _t
+    if n in self.exp_avg_ipt and n in self.exp_avg_unc:
+        score = self.exp_avg_ipt[n] * self.exp_avg_unc[n]
+        return _t.nan_to_num(score, nan=0.0, posinf=1e30, neginf=0.0)
+    for key in self.exp_avg_ipt.keys():
+        if n.endswith(key) or key.endswith(n):
+            score = self.exp_avg_ipt[key] * self.exp_avg_unc[key]
+            return _t.nan_to_num(score, nan=0.0, posinf=1e30, neginf=0.0)
+    # Fallback: return zeros matching the largest known score shape
+    if self.exp_avg_ipt:
+        template = next(iter(self.exp_avg_ipt.values()))
+        return _t.zeros_like(template)
+    return _t.tensor(0.0, dtype=_t.float32)
+
+# --- FIX 2: Correct the Aggressive End-of-Training Pruning Loop ---
+def patched_budget_schedule(self, step: int):
+    """
+    Enforces deltaT intervals during final fine-tuning to prevent
+    costly masking calculations on every single training forward pass.
+    """
+    tinit = self.peft_config.tinit
+    tfinal = self.peft_config.tfinal
+    total_step = self.peft_config.total_step
+    is_interval_step = (step % self.peft_config.deltaT == 0)
+
+    if step <= tinit:
+        budget = self.init_bgt
+        mask_ind = False
+    elif step > total_step - tfinal:
+        budget = self.target_bgt
+        mask_ind = is_interval_step  # FIX: Only prune on scheduled intervals
+    else:
+        mul_coeff = 1 - (step - tinit) / (total_step - tfinal - tinit)
+        budget = int((self.init_bgt - self.target_bgt) * (mul_coeff**3) + self.target_bgt)
+        mask_ind = is_interval_step
+        
+    return budget, mask_ind
+
+# --- FIX 3: Variadic Keyword Argument Absorption ---
+def robust_update_and_allocate(self, model, global_step, *args, **kwargs):
+    """
+    Safely absorbs extra initialization keywords (like force_mask=True)
+    passed down by the framework during state changes.
+    """
+    return self.orig_update_and_allocate(model, global_step, *args, **kwargs)
+
+# Bind fixes into PEFT's class structure globally
+RankAllocator._element_score = patched_element_score
+RankAllocator.budget_schedule = patched_budget_schedule
+
+if not hasattr(RankAllocator, "orig_update_and_allocate"):
+    RankAllocator.orig_update_and_allocate = RankAllocator.update_and_allocate
+    RankAllocator.update_and_allocate = robust_update_and_allocate
+
+
+
 class BOPETTrainer:
     """
     Scientific Trainer for PEFT Models with:
@@ -77,16 +145,9 @@ class BOPETTrainer:
         self.training_config = config.training
         
         # Handle backward compatibility for removed parameters
-        # Risk mitigation instances (optional).
-        # Populated by experiment_runner.create_risk_mitigation_instances().
-        self.risk_mitigation = kwargs.pop('risk_mitigation_instances', None)
-        if self.risk_mitigation:
-            logger.info(
-                "Risk mitigation enabled: %s",
-                ", ".join(sorted(self.risk_mitigation.keys())),
-            )
-        else:
-            self.risk_mitigation = None
+        if 'risk_mitigation_instances' in kwargs:
+            logger.warning("⚠️ 'risk_mitigation_instances' parameter is deprecated and will be ignored")
+        
         # Move model to device
         self.model.to(self.device)
 
@@ -110,13 +171,46 @@ class BOPETTrainer:
         if self.class_weights is not None:
             self.class_weights = self.class_weights.to(self.device)
         
-        # Mixed precision training
-        self.use_amp = self.training_config.use_amp and self.device.type == 'cuda'
-        if self.use_amp:
-            self.scaler = torch.GradScaler()
-            logger.info("Mixed precision training enabled")
+        # Mixed precision configuration
+        self.use_amp = (
+            self.training_config.use_amp
+            and self.device.type == "cuda"
+        )
+
+        # Resolve the configured dtype before creating the scaler.
+        configured_dtype = getattr(
+            self.training_config, "amp_dtype", "float16"
+        ).lower()
+
+        if configured_dtype == "float16":
+            self.amp_dtype = torch.float16
+        elif configured_dtype == "bfloat16":
+            self.amp_dtype = torch.bfloat16
+        else:
+            raise ValueError(
+                f"Unsupported amp_dtype={configured_dtype!r}. "
+                "Use 'float16' or 'bfloat16'."
+            )
+
+        # GradScaler is required for CUDA FP16, but not for BF16.
+        if self.use_amp and self.amp_dtype == torch.float16:
+            try:
+                self.scaler = torch.amp.GradScaler(
+                    "cuda",
+                    enabled=True
+                )
+            except (AttributeError, TypeError):
+                # Compatibility with older PyTorch releases.
+                self.scaler = torch.cuda.amp.GradScaler(enabled=True)
         else:
             self.scaler = None
+
+        logger.info(
+            "[AMP] enabled=%s | dtype=%s | GradScaler=%s",
+            self.use_amp,
+            str(self.amp_dtype),
+            self.scaler is not None,
+        )
         
         # MLflow tracking
         self.mlflow_enhancer = mlflow_enhancer
@@ -152,7 +246,130 @@ class BOPETTrainer:
         
         # Progressive PEPT setup
         self._setup_progressive_pept()
+
+        # AdaLoRA-specific global step counter. AdaLoRA's pruning
+        # schedule is measured in optimizer steps from the start of
+        # training, not per-epoch batch indices. This counter is
+        # incremented once per optimizer step, only when the model
+        # exposes the PEFT AdaLoRA interface.
+        self._adalora_global_step = 0
+        self._nonfinite_events = 0
+        self._successful_steps  = 0
+        self._buffers_verified = False
         
+        _base = getattr(self.model, "base_model", None)
+        self._is_adalora_model = (
+            _base is not None
+            and hasattr(_base, "update_and_allocate")
+            and not self.is_progressive_model
+        )
+        logger.info(f"[AdaLoRA] detection: _is_adalora_model={self._is_adalora_model}, "
+                    f"base_class={type(_base).__name__ if _base is not None else None}")
+
+       
+
+        
+        
+        if self._is_adalora_model:
+             
+            logger.info(
+                "[AdaLoRA validation] AMP=%s | dtype=%s | scaler=%s",
+                self.use_amp,
+                self.amp_dtype,
+                self.scaler is not None,
+            )
+            # Defensive patch for huggingface/peft#1721: guard update_ipt
+            # against parameters that have "lora_" in their name but no
+            # gradient. Applies to PEFT 0.18.0 and is a no-op on versions
+            # where the guard is already present.
+            try:
+                from peft.tuners.adalora.model import RankAllocator
+
+                if not getattr(RankAllocator.update_ipt, "_is_patched", False):
+                    _orig_update_ipt = RankAllocator.update_ipt
+
+                    def _safe_update_ipt(self, model):
+                        """
+                        FP32 AdaLoRA importance estimation.
+
+                        Assumption: gradients have already been unscaled by GradScaler
+                        before update_and_allocate() is called.
+                        """
+                        import torch as _t
+
+                        with _t.no_grad():
+                            for n, p in model.named_parameters():
+
+                                if "lora_" not in n or p.grad is None:
+                                    continue
+
+                                # Importance estimation must not inherit FP16 arithmetic.
+                                p32 = p.detach().to(dtype=_t.float32)
+                                g32 = p.grad.detach().to(dtype=_t.float32)
+
+                                ipt_new = (p32 * g32).abs()
+
+                                g_max = g32.abs().max().item()
+                                g_nonzero = (g32 != 0).float().mean().item()
+                                #logger.info(f"[AdaLoRA-FP32] {n}: g_max={g_max:.3e} nonzero={g_nonzero:.4f}")
+
+                                if not _t.isfinite(ipt_new).all():
+                                    logger.warning(
+                                        "[AdaLoRA-FP32] Non-finite importance; "
+                                        "skipping parameter: %s",
+                                        n,
+                                    )
+                                     
+                                    continue
+
+                                 
+
+                                # Create or migrate all importance buffers to FP32.
+                                if n not in self.ipt:
+                                    self.ipt[n] = _t.zeros_like(p32)
+                                else:
+                                    self.ipt[n] = self.ipt[n].to(
+                                        device=p.device,
+                                        dtype=_t.float32,
+                                    )
+
+                                if n not in self.exp_avg_ipt:
+                                    self.exp_avg_ipt[n] = _t.zeros_like(p32)
+                                else:
+                                    self.exp_avg_ipt[n] = self.exp_avg_ipt[n].to(
+                                        device=p.device,
+                                        dtype=_t.float32,
+                                    )
+
+                                if n not in self.exp_avg_unc:
+                                    self.exp_avg_unc[n] = _t.zeros_like(p32)
+                                else:
+                                    self.exp_avg_unc[n] = self.exp_avg_unc[n].to(
+                                        device=p.device,
+                                        dtype=_t.float32,
+                                    )
+
+                                # Preserve the AdaLoRA moving-average update equations.
+                                self.ipt[n] = ipt_new
+
+                                self.exp_avg_ipt[n] = (
+                                    self.beta1 * self.exp_avg_ipt[n]
+                                    + (1.0 - self.beta1) * ipt_new
+                                )
+
+                                self.exp_avg_unc[n] = (
+                                    self.beta2 * self.exp_avg_unc[n]
+                                    + (1.0 - self.beta2)
+                                    * (ipt_new - self.exp_avg_ipt[n]).abs()
+                                )
+
+                    _safe_update_ipt._is_patched = True
+                    RankAllocator.update_ipt = _safe_update_ipt
+                    logger.info("Applied RankAllocator.update_ipt patch (peft#1721)")
+            except Exception as _e:
+                logger.debug(f"update_ipt patch not applied: {_e}")    
+                
+                        
         logger.info(f"Trainer initialized on {self.device}")
         logger.info(f"Gradient accumulation steps: {self.grad_accumulation_steps}")
         logger.info(f"Mixed precision: {self.use_amp}")
@@ -289,48 +506,12 @@ class BOPETTrainer:
 
                     except Exception as e:
                         logger.debug(f"Entropy logging skipped: {e}")
-                
-                #  NEW - Progressive PEPT epoch logging
+
+                #  NEW — Progressive PEPT epoch logging
                 if self.is_progressive_model:
                     self._log_progressive_pept_epoch_summary(epoch)
 
-
-                # ------------------------------------------------------------
-                # Convergence monitor consultation (if risk mitigation enabled)
-                # ------------------------------------------------------------
-                if self.risk_mitigation:
-                    cm = self.risk_mitigation.get('convergence_monitor')
-                    if cm is not None:
-                        suggestion = cm.check_convergence(
-                            current_metric,
-                            self.optimizer.param_groups[0]['lr'],
-                        )
-                        if suggestion.get('action') == 'adjust_learning_rate':
-                            new_lr = float(suggestion['new_lr'])
-                            current_lr = self.optimizer.param_groups[0]['lr']
-                            for pg in self.optimizer.param_groups:
-                                pg['lr'] = new_lr
-                            # Rescale the scheduler's reference LR so the
-                            # reduction persists across subsequent steps.
-                            if (self.scheduler is not None
-                                    and current_lr > 0
-                                    and hasattr(self.scheduler, 'base_lrs')):
-                                scale = new_lr / current_lr
-                                self.scheduler.base_lrs = [
-                                    b * scale for b in self.scheduler.base_lrs
-                                ]
-                            logger.info(
-                                "Convergence monitor reduced LR from %.2e to %.2e (%s)",
-                                current_lr, new_lr,
-                                suggestion.get('reason', 'stagnation'),
-                            )
-                        elif suggestion.get('action') == 'monitor':
-                            logger.debug(
-                                "Convergence monitor: %s",
-                                suggestion.get('warning', ''),
-                            )
-
-
+                
                 # Early stopping
                 if self.early_stopping and self.patience_counter >= self.patience:
                     logger.info(f"Early stopping triggered after {epoch+1} epochs")
@@ -347,6 +528,22 @@ class BOPETTrainer:
             else:
                 logger.info("Using final model for evaluation (best checkpoint shape mismatch)")
                 
+        if self._is_adalora_model:
+            total = self._successful_steps + self._nonfinite_events
+            rate  = 100.0 * self._nonfinite_events / max(total, 1)
+            logger.info(
+                "[AMP] Non-finite gradient events: %d / %d (%.2f%%) | "
+                "successful optimizer steps: %d | AdaLoRA step: %d",
+                self._nonfinite_events, total, rate,
+                self._successful_steps, self._adalora_global_step,
+            )
+
+        if self.is_progressive_model:
+            logger.info(
+                f"[TIMING_SUMMARY] method={self.config.peft.method} "
+                f"total_steps={self.current_epoch * len(self.train_loader)} "
+            )
+        
         return self.history
     
     def _log_progressive_pept_epoch_summary(self, epoch: int):
@@ -405,7 +602,7 @@ class BOPETTrainer:
         for step, batch in enumerate(pbar):
 
             current_time = time.time()
-            if step > 0:  # skip the first iteration as there's no previous
+            if step > 0:  # skip the first iteration as there’s no previous
                 data_time = current_time - prev_time
                 data_times.append(data_time)
 
@@ -578,6 +775,9 @@ class BOPETTrainer:
         Safe optimizer reset after rank reallocation.
         Preserves scheduler continuity by redirecting it to the new optimizer.
         """
+        import time
+        t_start = time.perf_counter()
+
         logger.info("🔄 Resetting optimizer due to Progressive PEPT rank change")
 
         opt_class = self.optimizer.__class__
@@ -589,67 +789,203 @@ class BOPETTrainer:
         self.optimizer = new_optimizer
 
         if self.scheduler:
-            # Redirect scheduler to the new optimizer - do NOT reset last_epoch
+            # Redirect scheduler to the new optimizer – do NOT reset last_epoch
             self.scheduler.optimizer = self.optimizer
+        t_end = time.perf_counter()
+        logger.info(f"[TIMING] optimizer_reset took {(t_end-t_start)*1000:.1f}ms")
+    
+    
+    def _check_adalora_fp32_buffers(self):
+        """Verify AdaLoRA importance buffers remain FP32."""
+
+        target = getattr(self.model, "base_model", self.model)
+        allocator = getattr(target, "rankallocator", None)
+
+        if allocator is None:
+            raise RuntimeError(
+                "AdaLoRA rankallocator was not found. "
+                "Check the installed PEFT model structure."
+            )
+
+        for name, tensor in allocator.exp_avg_ipt.items():
+            assert tensor.dtype == torch.float32, (
+                f"{name}: exp_avg_ipt is {tensor.dtype}, expected torch.float32"
+            )
+
+        for name, tensor in allocator.exp_avg_unc.items():
+            assert tensor.dtype == torch.float32, (
+                f"{name}: exp_avg_unc is {tensor.dtype}, expected torch.float32"
+            )
+
+        logger.info(
+            "[AdaLoRA validation] FP32 importance buffers verified."
+        )
 
 
-    def _mixed_precision_step(self, batch: Dict, step: int) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Training step with mixed precision"""
-        with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=self.use_amp):
+
+    def _mixed_precision_step(self, batch: Dict,
+        step: int
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """FP16 AMP training step with safe AdaLoRA allocation."""
+
+        with torch.autocast(
+            device_type="cuda",
+            dtype=self.amp_dtype,
+            enabled=self.use_amp,
+        ):
             outputs = self.model(**batch)
             loss = self._compute_loss(outputs, batch)
             loss = loss / self.grad_accumulation_steps
-        
-        # Scale loss and backward
-        self.scaler.scale(loss).backward()
-        
-        # Gradient accumulation
+
+        # Backward pass.
+        if self.scaler is not None:
+            self.scaler.scale(loss).backward()
+        else:
+            loss.backward()
+
+        # Perform an optimizer update only at accumulation boundaries.
         if (step + 1) % self.grad_accumulation_steps == 0:
+
             if self.is_progressive_model:
                 self._update_progressive_pept(step)
 
-            self.scaler.unscale_(self.optimizer)
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.max_grad_norm) 
-            self.scaler.step(self.optimizer)
-            self.scaler.update()
-            self.optimizer.zero_grad() 
+            # Unscale before clipping and before AdaLoRA reads gradients.
+            if self.scaler is not None:
+                self.scaler.unscale_(self.optimizer)
 
-            if self.scheduler:
-                self.scheduler.step()
-                # Log scheduler update
-                if step % 100 == 0:
-                    logger.debug(f"Step {step}: Scheduler stepped, LR = {self.optimizer.param_groups[0]['lr']:.2e}")
-        
+            # Check gradients belonging to optimizer parameters.
+            grads_are_finite = True
+
+            for group in self.optimizer.param_groups:
+                for p in group["params"]:
+                    if p.grad is None:
+                        continue
+
+                    grad = p.grad
+
+                    if grad.is_sparse:
+                        grad_values = grad.coalesce().values()
+                    else:
+                        grad_values = grad
+
+                    if not torch.isfinite(grad_values).all():
+                        grads_are_finite = False
+                        break
+
+                if not grads_are_finite:
+                    break
+
+            if grads_are_finite:
+
+                # Clip unscaled gradients.
+                torch.nn.utils.clip_grad_norm_(
+                    self.model.parameters(),
+                    self.max_grad_norm,
+                )
+
+                # Apply the optimizer update.
+                if self.scaler is not None:
+                    self.scaler.step(self.optimizer)
+                    self.scaler.update()
+                else:
+                    self.optimizer.step()
+
+                # Update AdaLoRA only after a successful optimizer step.
+                if self._is_adalora_model:
+                    self._adalora_global_step += 1
+                    self._successful_steps     += 1 
+
+                    target = getattr(
+                        self.model,
+                        "base_model",
+                        self.model,
+                    )
+
+                    try:
+                        target.update_and_allocate(self._adalora_global_step)
+                    except Exception as e:
+                        logger.error("AdaLoRA update_and_allocate failed at step %d: %s",
+                                    self._adalora_global_step, e, exc_info=True)
+                        raise
+
+                    
+                    # Verify ONCE, not every step.
+                    if not self._buffers_verified:
+                        self._check_adalora_fp32_buffers()
+                        self._buffers_verified = True
+
+                # Scheduler advances only after a successful update.
+                if self.scheduler is not None:
+                    self.scheduler.step()
+
+            else:
+                self._nonfinite_events += 1                # ← HERE
+                logger.warning(
+                    "[AMP] Non-finite gradients detected at epoch batch step %d. "
+                    "Optimizer and AdaLoRA allocation skipped.", step,
+                )
+                if self.scaler is not None:
+                    self.scaler.step(self.optimizer)
+                    self.scaler.update()
+
+            # Clear gradients after the optimizer and allocator operations.
+            self.optimizer.zero_grad(set_to_none=True)
+
         return loss, torch.argmax(outputs.logits, dim=-1)
-    
+        
     def _standard_step(self, batch: Dict, step: int) -> Tuple[torch.Tensor, torch.Tensor]:
         """Training step without mixed precision"""
         outputs = self.model(**batch)
         loss = self._compute_loss(outputs, batch)
         loss = loss / self.grad_accumulation_steps
-        
+
         # Backward pass
         loss.backward()
-        
+
         # Gradient accumulation
         if (step + 1) % self.grad_accumulation_steps == 0:
-
             if self.is_progressive_model:
                 self._update_progressive_pept(step)
 
+            # NEW: finiteness check
+            grads_are_finite = all(
+                torch.isfinite(p.grad).all().item()
+                for group in self.optimizer.param_groups
+                for p in group["params"]
+                if p.grad is not None
+            )
+            if not grads_are_finite:
+                logger.warning(f"[FP32] Non-finite gradients at step {step}; skipping step")
+                self.optimizer.zero_grad(set_to_none=True)
+                return loss, torch.argmax(outputs.logits, dim=-1)
+            
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.max_grad_norm)
+
+            # AdaLoRA pruning schedule (no-op for non-AdaLoRA models)
+            if self._is_adalora_model:
+                self._adalora_global_step += 1
+                target = getattr(self.model, "base_model", self.model)
+                try:
+                    target.update_and_allocate(self._adalora_global_step)
+                except Exception as e:
+                    logger.error(
+                        f"AdaLoRA update_and_allocate failed at step "
+                        f"{self._adalora_global_step}: {e}",
+                        exc_info=True,
+                    )
+                    raise
+
             self.optimizer.step()
             self.optimizer.zero_grad()
 
-            
             if self.scheduler:
                 self.scheduler.step()
-
-                # Log scheduler update
                 if step % 100 == 0:
-                    logger.debug(f"Step {step}: Scheduler stepped, LR = {self.optimizer.param_groups[0]['lr']:.2e}")
+                    logger.debug(
+                        f"Step {step}: Scheduler stepped, "
+                        f"LR = {self.optimizer.param_groups[0]['lr']:.2e}"
+                    )
 
-        
         return loss, torch.argmax(outputs.logits, dim=-1)
     
     def _compute_loss(self, outputs, batch) -> torch.Tensor:
@@ -693,12 +1029,7 @@ class BOPETTrainer:
         self.mlflow_enhancer.log_batch_metrics(global_step, batch_metrics)
     
     def _clear_memory(self):
-        """Clear unused memory, deferring to the resource monitor if present."""
-        if self.risk_mitigation:
-            rm = self.risk_mitigation.get('resource_monitor')
-            if rm is not None:
-                rm.clear_memory()
-                return
+        """Clear unused memory"""
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
             torch.cuda.synchronize()
@@ -922,7 +1253,7 @@ class BOPETTrainer:
             
         except RuntimeError as e:
             if "size mismatch" in str(e):
-                # Expected for progressive models - log as debug
+                # Expected for progressive models – log as debug
                 logger.debug(f"Shape mismatch when loading checkpoint (expected for progressive models): {e}")
             else:
                 logger.error(f"Failed to load model from {path}: {e}")

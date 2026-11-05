@@ -1,5 +1,5 @@
 # ============================================================================
-# GPT-2 tidg Baseline - Full Suite (8 methods)
+# GPT‑2 tidg Baseline – Full Suite (8 methods)
 # ============================================================================
 
 base_config: "configs/experiments/gpt2_tidg_base.yaml"
@@ -52,7 +52,7 @@ baseline_methods:
       model.freeze_base: false
       peft.optimize_hyperparams: false
       training.learning_rate: 2e-5
-      experiment_name: "GPT-2 Full Fine-tuning"
+      experiment_name: "GPT‑2 Full Fine-tuning"
 
   - name: "gpt2_vanilla"
     description: "Vanilla classifier (frozen base)"
@@ -64,7 +64,7 @@ baseline_methods:
       peft.method: "vanilla"
       peft.optimize_hyperparams: false
       training.learning_rate: 2e-5
-      experiment_name: "GPT-2 Vanilla"
+      experiment_name: "GPT‑2 Vanilla"
 
   - name: "gpt2_lora"
     description: "LoRA (attention only)"
@@ -78,7 +78,7 @@ baseline_methods:
       peft.rank: 8
       peft.target_modules: ["c_attn", "c_proj"]
       training.learning_rate: 2e-4
-      experiment_name: "GPT-2 LoRA"
+      experiment_name: "GPT‑2 LoRA"
 
   - name: "gpt2_dora"
     description: "DoRA (attention only)"
@@ -93,7 +93,7 @@ baseline_methods:
       peft.rank: 8
       peft.target_modules: ["c_attn", "c_proj"]
       training.learning_rate: 2e-4
-      experiment_name: "GPT-2 DoRA"
+      experiment_name: "GPT‑2 DoRA"
 
   - name: "gpt2_adalora"
     description: "AdaLoRA (attention + FFN)"
@@ -107,11 +107,11 @@ baseline_methods:
       peft.rank: 8
       peft.target_modules: ["c_attn", "c_proj", "c_fc"]
       training.learning_rate: 2e-4
-      experiment_name: "GPT-2 AdaLoRA"
+      experiment_name: "GPT‑2 AdaLoRA"
 
-  # --- Budget-based progressive variants ---
+  # --- Budget‑based progressive variants ---
   - name: "gpt2_progressive_adaptive"
-    description: "Progressive PEPT adaptive schedule (budget-based)"
+    description: "Progressive PEPT adaptive schedule (budget‑based)"
     peft_method: "progressive"
     scientific_role: "experimental_novel"
     priority: 1
@@ -129,10 +129,10 @@ baseline_methods:
       peft.allocation_update_frequency: 200
       peft.temperature: 1.0
       training.learning_rate: 2e-4
-      experiment_name: "GPT-2 Progressive Adaptive"
+      experiment_name: "GPT‑2 Progressive Adaptive"
 
   - name: "gpt2_progressive_linear"
-    description: "Progressive PEPT linear ablation (budget-based)"
+    description: "Progressive PEPT linear ablation (budget‑based)"
     peft_method: "progressive"
     scientific_role: "ablation_study"
     priority: 5
@@ -150,10 +150,10 @@ baseline_methods:
       peft.allocation_update_frequency: 200
       peft.temperature: 1.0
       training.learning_rate: 2e-4
-      experiment_name: "GPT-2 Progressive Linear"
+      experiment_name: "GPT‑2 Progressive Linear"
 
   - name: "gpt2_progressive_fixed"
-    description: "Progressive fixed rank (budget-based, constant global rank)"
+    description: "Progressive fixed rank (budget‑based, constant global rank)"
     peft_method: "progressive"
     scientific_role: "ablation_study"
     priority: 5
@@ -170,11 +170,11 @@ baseline_methods:
       peft.allocation_update_frequency: 200
       peft.temperature: 1.0
       training.learning_rate: 2e-4
-      experiment_name: "GPT-2 Progressive Fixed"
+      experiment_name: "GPT‑2 Progressive Fixed"
 
-  # --- Structure-Adaptive Progressive (SAP-PEFT) ---
+  # --- Structure‑Adaptive Progressive (SAP‑PEFT) ---
   - name: "gpt2_sap_peft"
-    description: "Structure-Adaptive Progressive PEFT (SAP-PEFT)"
+    description: "Structure‑Adaptive Progressive PEFT (SAP‑PEFT)"
     peft_method: "progressive"
     scientific_role: "experimental_novel"
     priority: 1
@@ -190,11 +190,11 @@ baseline_methods:
       peft.temperature: 1.0
       peft.initial_rank: 8
       training.learning_rate: 2e-4
-      experiment_name: "GPT-2 SAP-PEFT"
+      experiment_name: "GPT‑2 SAP-PEFT"
 
   #   # --- Dynamic rank baselines (DyLoRA, SaLoRA) ---
   # - name: "gpt2_dy_lora"
-  #   description: "DyLoRA - dynamic rank via uniform sampling"
+  #   description: "DyLoRA – dynamic rank via uniform sampling"
   #   peft_method: "dy_lora"
   #   scientific_role: "experimental"
   #   priority: 2
@@ -207,10 +207,10 @@ baseline_methods:
   #     peft.rank: 8
   #     peft.target_modules: ["c_attn", "c_proj", "c_fc"]
   #     training.learning_rate: 2e-4
-  #     experiment_name: "GPT-2 DyLoRA"
+  #     experiment_name: "GPT‑2 DyLoRA"
 
   # - name: "gpt2_sa_lora"
-  #   description: "SaLoRA - structure-aware pruning of rank"
+  #   description: "SaLoRA – structure‑aware pruning of rank"
   #   peft_method: "sa_lora"
   #   scientific_role: "experimental"
   #   priority: 2
@@ -224,4 +224,4 @@ baseline_methods:
   #     peft.prune_ratio: 0.3
   #     peft.target_modules: ["c_attn", "c_proj", "c_fc"]
   #     training.learning_rate: 2e-4
-  #     experiment_name: "GPT-2 SaLoRA"
+  #     experiment_name: "GPT‑2 SaLoRA"

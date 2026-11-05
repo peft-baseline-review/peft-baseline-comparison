@@ -1,5 +1,5 @@
 # ============================================================
-# GPT-2 Base Configuration for Sentiment Analysis
+# GPT‑2 Base Configuration for Sentiment Analysis
 # ============================================================
 
 model: !include ../model/gpt2.yaml

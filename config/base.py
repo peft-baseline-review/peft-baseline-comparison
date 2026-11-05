@@ -1,24 +1,14 @@
+# config/base.py
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import Optional, List, Dict, Any, Union, Literal
 from enum import Enum
 from datetime import datetime
+import torch
 from dataclasses import dataclass
-from pathlib import Path
-import json
-
 import yaml
-
-# torch is only needed to pick a default device and validate it.
-# Imported lazily inside the validator / default factory so that
-# simply importing config.base does not require torch.
-
-
-def _default_device() -> str:
-    try:
-        import torch
-        return "cuda" if torch.cuda.is_available() else "cpu"
-    except ImportError:
-        return "cpu"
+from pathlib import Path
+import mlflow
+import json
 
 class TaskType(str, Enum):
     SENTIMENT = "sentiment"
@@ -45,7 +35,7 @@ class PEFTMethod(str, Enum):
     BITFIT = "bitfit"
     VANILLA = "vanilla"
     DY_LORA = "dy_lora"      # Dynamic LoRA
-    SA_LORA = "sa_lora"      # Structure-Aware LoRA
+    SA_LORA = "sa_lora"      # Structure‑Aware LoRA
 
 class RankSchedule(str, Enum):
     LINEAR = "linear"
@@ -78,7 +68,7 @@ class BaseConfig(BaseModel):
     # Reproducibility
     seed: int = 42
     deterministic: bool = True
-    device: str = Field(default_factory=_default_device)
+    device: str = "cuda" if torch.cuda.is_available() else "cpu"
     
     # MLflow tracking
     use_mlflow: bool = True
@@ -109,14 +99,9 @@ class BaseConfig(BaseModel):
     
     @field_validator('device')
     def validate_device(cls, v):
-        if v == "cuda":
-            try:
-                import torch
-                if not torch.cuda.is_available():
-                    print("⚠️ CUDA requested but not available. Falling back to CPU.")
-                    return "cpu"
-            except ImportError:
-                return "cpu"
+        if v == "cuda" and not torch.cuda.is_available():
+            print("⚠️ CUDA requested but not available. Falling back to CPU.")
+            return "cpu"
         return v
     
     def to_yaml(self, path: Path):

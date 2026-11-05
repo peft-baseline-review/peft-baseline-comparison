@@ -262,6 +262,7 @@ class ProgressivePEFTWrapper(nn.Module):
         return self.model(*args, **kwargs)
 
     def step_post_backward(self):
+        import time
         self.allocator.step += 1
         self.importance_estimator.update(self.model)
         per_param_imp, module_imp = self.importance_estimator.get_importance()
@@ -271,8 +272,11 @@ class ProgressivePEFTWrapper(nn.Module):
 
         self.allocator.update_schedule(self.importance_estimator)
         logger.info(f"[PROGRESSIVE] Step {self.allocator.step}: current_rank = {self.allocator.current_rank}")
+        
+        t_alloc_start = time.perf_counter()
 
         allocation = self.allocator.allocate(module_imp, self.lora_modules)
+        t_alloc = time.perf_counter() - t_alloc_start
 
         if allocation:
             max_rank = max(allocation.values())
@@ -282,8 +286,17 @@ class ProgressivePEFTWrapper(nn.Module):
         for mod in sample_modules:
             logger.info(f"[PROGRESSIVE]   allocated {mod} = {allocation[mod]}")
 
+        
         self.current_allocation = allocation.copy()
+
+        t_apply_start = time.perf_counter()
         changed = self._apply_allocation(allocation)
+        t_apply = time.perf_counter() - t_apply_start
+
+        logger.info(
+        f"[TIMING] step={self.allocator.step} "
+        f"alloc={t_alloc*1000:.2f}ms apply={t_apply*1000:.2f}ms changed={changed}"
+    )
 
         if changed:
             logger.info(f"[PROGRESSIVE] Rank changes applied at step {self.allocator.step}")

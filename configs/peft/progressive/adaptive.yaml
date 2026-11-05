@@ -1,0 +1,13 @@
+# Progressive PEPT – budget‑based, adaptive schedule
+peft:
+  method: "progressive"
+  allocation_strategy: "budget"
+  rank_schedule: "adaptive"
+  initial_rank: 4
+  final_rank: 16
+  min_rank: 2
+  max_rank: 32
+  target_modules: null
+  ema_beta: 0.9
+  warmup_steps: 50
+  rank_change_threshold: 1

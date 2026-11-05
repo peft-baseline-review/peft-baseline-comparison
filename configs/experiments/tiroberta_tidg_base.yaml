@@ -1,5 +1,5 @@
 # ============================================================
-# TiroBERTa Base Configuration for TiDG (7-class genre)
+# TiroBERTa Base Configuration for TiDG (7‑class genre)
 # ============================================================
 
 model: !include ../model/tiroberta.yaml

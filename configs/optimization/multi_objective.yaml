@@ -1,0 +1,98 @@
+# configs/multi_objective.yaml - ENHANCED FOR HYDRALOGISTICS
+optimizer: multi_objective
+n_trials: 50
+timeout: 7200
+study_name: ${experiment_name}
+storage: null
+load_if_exists: true
+random_state: ${experiment.seed}
+
+# Multi-objective settings (Enhanced for accuracy)
+multi_objective:
+  enabled: true
+  
+  objectives:
+    - name: accuracy
+      weight: 0.4
+      direction: maximize
+      scale: [0.0, 1.0]
+      priority: high
+      
+    - name: efficiency
+      weight: 0.3
+      direction: maximize  # We want HIGHER efficiency (100/trainable%)
+      scale: [0.0, 100.0]
+      priority: medium
+      
+    - name: latency
+      weight: 0.2
+      direction: minimize
+      scale: [0.0, 1000.0]
+      priority: medium
+      
+    - name: memory
+      weight: 0.1
+      direction: minimize
+      scale: [0.0, 10000.0]
+      priority: low
+  
+  # Advanced optimization settings
+  scalarization_method: weighted_sum
+  pareto_front_size: 15
+  dominance_epsilon: 0.01
+  hypervolume_reference: [0.0, 100.0, 1000.0, 10000.0]
+  
+  # NSGA-II with improved parameters
+  nsgaii:
+    population_size: ${multi_objective.pareto_front_size * 3}
+    crossover_prob: 0.9
+    mutation_prob: 0.15
+    crossover_eta: 15
+    mutation_eta: 20
+    swapping_prob: 0.5
+  
+  # Constraint handling (production-ready)
+  constraints:
+    enabled: true
+    min_accuracy: 0.6
+    max_trainable_percentage: 5.0
+    max_latency_ms: 500
+    max_memory_mb: 8000
+    rank_alpha_ratio: [1.0, 8.0]
+  
+  # Evaluation metrics
+  evaluation_metrics:
+    - hypervolume
+    - spacing
+    - maximum_spread
+    - inverted_generational_distance
+
+# Sampler configuration (fixed)
+sampler:
+  type: nsgaii
+  seed: ${experiment.seed}
+
+# Pruner configuration
+pruning:
+  enabled: false  # Pruning tricky for MO
+  pruner: hyperband
+  n_startup_trials: 10
+
+# Search space inheritance
+search_space: ${optimization.search_space}
+
+# Output settings (enhanced)
+output:
+  save_pareto_front: true
+  save_hypervolume_history: true
+  save_tradeoff_analysis: true
+  save_constraint_violations: true
+  save_parameter_importance: true
+  generate_visualizations: true
+  results_dir: "${experiment_dir}/multi_objective_results"
+  
+# Parallel execution
+parallel:
+  enabled: false
+  n_jobs: -1
+  backend: joblib

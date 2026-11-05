@@ -1,0 +1,10 @@
+# Structure‑Adaptive Progressive (SAP‑PEFT)
+peft:
+  method: "progressive"
+  allocation_strategy: "structure"
+  min_rank: 2
+  max_rank: 32
+  target_modules: null
+  ema_beta: 0.9
+  warmup_steps: 50
+  rank_change_threshold: 1

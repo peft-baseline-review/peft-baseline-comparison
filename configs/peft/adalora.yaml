@@ -1,0 +1,14 @@
+# AdaLoRA configuration
+peft:
+  method: "adalora"
+  rank: 8
+  alpha: 16
+  dropout: 0.1
+  target_modules: null
+  use_dora: false
+  quantization_enabled: false
+  bias: "none"
+  # AdaLoRA specific parameters (optional, defaults in code)
+  tinit: 100
+  tfinal: 1000
+  deltaT: 10

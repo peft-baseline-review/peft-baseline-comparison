@@ -209,6 +209,14 @@ class ExperimentResult:
     peak_memory_mb: float = 0.0
     energy_per_sample_joules: float = 0.0
 
+    # AdaLoRA-aware reporting (None for non-adaptive methods)
+    trainable_params_nominal: Optional[int] = None
+    trainable_percentage_nominal: Optional[float] = None
+    adalora_active_units: Optional[int] = None
+    adalora_nominal_units: Optional[int] = None
+    adalora_target_units: Optional[int] = None
+    adalora_pruning_ratio: Optional[float] = None
+
 
 # ============================================================================
 # TIMEOUT HANDLING - Windows Compatible
@@ -315,13 +323,14 @@ def _run_experiment(
         
         energy = results["results"]["inference_metrics"].get("energy_per_sample_joules", 0.0)
 
+        eff = results["results"]["efficiency_metrics"]
         result = ExperimentResult(
             method_name=method.name,
             seed=seed,
             accuracy=results["results"]["model_metrics"].get("accuracy", 0),
             f1_weighted=results["results"]["model_metrics"].get("f1_weighted", 0),
-            trainable_percentage=results["results"]["efficiency_metrics"].get("trainable_percentage", 100),
-            trainable_params=results["results"]["efficiency_metrics"].get("trainable_params", 0),
+            trainable_percentage=eff.get("trainable_percentage", 100),
+            trainable_params=eff.get("trainable_params", 0),
             composite_score=(
                 results["results"]
                 .get("experiment_report", {})
@@ -337,6 +346,13 @@ def _run_experiment(
             latency_mean_ms=latency,
             peak_memory_mb=memory,
             energy_per_sample_joules=energy,
+            # AdaLoRA-aware fields (None for non-AdaLoRA methods)
+            trainable_params_nominal=eff.get("trainable_params_nominal"),
+            trainable_percentage_nominal=eff.get("trainable_percentage_nominal"),
+            adalora_active_units=eff.get("adalora_active_units"),
+            adalora_nominal_units=eff.get("adalora_nominal_units"),
+            adalora_target_units=eff.get("adalora_target_units"),
+            adalora_pruning_ratio=eff.get("adalora_pruning_ratio"),
         )
         
         # Cleanup
@@ -344,6 +360,7 @@ def _run_experiment(
         gc.collect()
         if torch and torch.cuda.is_available():
             torch.cuda.empty_cache()
+            torch.cuda.synchronize()
         
         # Clear timeout
         if platform.system() != "Windows" and hasattr(signal, 'SIGALRM'):
@@ -882,6 +899,11 @@ class ScientificBaselineRunner:
         """Perform comprehensive statistical analysis"""
         analysis_results = {}
         performance_data = {}
+
+        def _mean_optional(values):
+            """Mean of non-None values, or None if all None."""
+            vals = [v for v in values if v is not None]
+            return float(np.mean(vals)) if vals else None
         
         for method_name, results in self.results.items():
             successful = [r for r in results if r.success]
@@ -921,9 +943,19 @@ class ScientificBaselineRunner:
                     "params_millions": float(param_mean),
                     "efficiency_mean": float(np.mean([r.trainable_percentage for r in successful])),
                     "composite_mean": float(np.mean([r.composite_score for r in successful])),
-                    "n_success": len(successful),
-                    "success_rate": len(successful) / len(results)
-                }
+                    "params_millions_nominal": _mean_optional(
+                        [r.trainable_params_nominal / 1e6 for r in successful]
+                    ),
+                    "efficiency_mean_nominal": _mean_optional(
+                        [r.trainable_percentage_nominal for r in successful]
+                    ),
+                    "adalora_active_units":  _mean_optional([r.adalora_active_units  for r in successful]),
+                    "adalora_nominal_units": _mean_optional([r.adalora_nominal_units for r in successful]),
+                    "adalora_target_units":  _mean_optional([r.adalora_target_units  for r in successful]),
+                    "adalora_pruning_ratio": _mean_optional([r.adalora_pruning_ratio for r in successful]),
+                                        "n_success": len(successful),
+                                        "success_rate": len(successful) / len(results)
+                                    }
         
         analysis_results["performance_summary"] = performance_data
         self.comparison_results = analysis_results 
@@ -1123,19 +1155,36 @@ class ScientificBaselineRunner:
         """Generate comprehensive reports""" 
 
         summary_data = []
+
+        def _fmt(val, spec=".2f"):
+            return f"{val:{spec}}" if val is not None else "—"
+        
         for method_name, data in self.comparison_results.get("performance_summary", {}).items():
+            
             summary_data.append({
                 "Method": method_name,
                 "Accuracy": f"{data['accuracy_mean']:.4f} ± {data['accuracy_ci_width']:.4f}",
                 "F1 (weighted)": f"{data['f1_mean']:.4f} ± {data['f1_ci_width']:.4f}",
                 "Latency (ms)": f"{data['latency_mean_ms']:.2f} ± {data['latency_ci_width']:.2f}",
                 "Energy (J)": f"{data['energy_mean_j']:.3f} ± {data['energy_ci_width']:.3f}",
+                # Effective (headline)
                 "Params (M)": f"{data['params_millions']:.2f}",
                 "Efficiency (%)": f"{data['efficiency_mean']:.2f}",
+                # Nominal (peak footprint — AdaLoRA only)
+                "Params (M) Nominal": _fmt(data.get("params_millions_nominal"), ".2f"),
+                "Efficiency (%) Nominal": _fmt(data.get("efficiency_mean_nominal"), ".2f"),
+                # AdaLoRA-specific
+                "AdaLoRA Active Units": _fmt(data.get("adalora_active_units"), ".0f"),
+                "AdaLoRA Nominal Units": _fmt(data.get("adalora_nominal_units"), ".0f"),
+                "AdaLoRA Target Units": _fmt(data.get("adalora_target_units"), ".0f"),
+                "Pruning Ratio": _fmt(data.get("adalora_pruning_ratio"), ".3f"),
+                # Common
                 "Composite": f"{data['composite_mean']:.4f}",
                 "N": data['n_success'],
-                "Success Rate": f"{data['success_rate']*100:.0f}%"
+                "Success Rate": f"{data['success_rate']*100:.0f}%",
             })
+        
+        
         df_summary = pd.DataFrame(summary_data)
 
         csv_path = self.output_dir / "baseline_summary.csv"
@@ -1176,7 +1225,12 @@ class ScientificBaselineRunner:
 
     ## Performance Summary
 
-    {df_summary.to_markdown(index=False)}
+    ## Performance Summary
+
+{df_summary[["Method", "Accuracy", "F1 (weighted)", "Latency (ms)", "Energy (J)",
+             "Params (M)", "Efficiency (%)", "Composite", "N", "Success Rate"]].to_markdown(index=False)}
+
+{'### AdaLoRA Dynamic Allocation' + chr(10) + chr(10) + df_summary[["Method", "Params (M)", "Params (M) Nominal", "Efficiency (%)", "Efficiency (%) Nominal", "AdaLoRA Active Units", "AdaLoRA Nominal Units", "AdaLoRA Target Units", "Pruning Ratio"]][df_summary["AdaLoRA Active Units"] != "—"].to_markdown(index=False) + chr(10) + chr(10) + "> **Effective** = post-pruning (inference compute). **Nominal** = pre-pruning (peak training-memory footprint, `init_r × modules`). Only **Effective** is comparable against fixed-rank LoRA baselines." if any(df_summary["AdaLoRA Active Units"] != "—") else ""}
     """
 
         # Pairwise Statistical Comparisons (if available)

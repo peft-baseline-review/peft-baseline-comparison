@@ -44,7 +44,9 @@ def main():
     parser.add_argument("--output-dir", type=str, default=None,
                        help="Override output directory")
     parser.add_argument("--sequential", action="store_true",
-                       help="Force sequential execution (no parallel)")
+                       help="Force sequential execution (no parallel)"),
+    parser.add_argument("--disable-mlflow", action="store_true",
+                       help="Disable all MLflow tracking for this invocation")
     
     args = parser.parse_args()
     
@@ -82,11 +84,12 @@ def main():
         baseline_config.output_dir = args.output_dir
     
     # Create and run baseline comparison
+    enable_mlflow = not args.disable_mlflow
     runner = ScientificBaselineRunner(
         baseline_config=baseline_config,
         random_seeds=random_seeds,
         output_dir=baseline_config.output_dir,
-        enable_mlflow=True,
+        enable_mlflow=enable_mlflow,
         enable_monitoring=True
     )
     
@@ -127,7 +130,7 @@ def main():
     print(f" Results saved to: {runner.output_dir}")
     print(f" Methods compared: {len(baseline_config.baseline_methods)}")
     print(f" Replications per method: {baseline_config.replication_count}")
-    print(f"⏱ Average training time: {summary['average_training_time_hours']:.2f} hours")
+    print(f"Average training time: {summary['average_training_time_hours']:.2f} hours")
     print(f"\n Reports generated:")
     print(f"  - {runner.output_dir}/baseline_report.md")
     print(f"  - {runner.output_dir}/baseline_summary.csv")
