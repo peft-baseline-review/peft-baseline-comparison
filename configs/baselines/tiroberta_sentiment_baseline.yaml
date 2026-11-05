@@ -191,36 +191,4 @@ baseline_methods:
       training.learning_rate: 2e-4
       experiment_name: "TiroBERTa Sentiment SAP-PEFT"
 
-  #   # --- Dynamic rank baselines (DyLoRA, SaLoRA) ---
-  # - name: "tiroberta_sentiment_dy_lora"   # or tiroberta_tidg_dy_lora for the other
-  #   description: "DyLoRA – dynamic rank via uniform sampling"
-  #   peft_method: "dy_lora"
-  #   scientific_role: "experimental"
-  #   priority: 2
-  #   expected_compute_hours: 0.5
-  #   config_overrides:
-  #     peft.method: "dy_lora"
-  #     peft.optimize_hyperparams: false
-  #     peft.max_rank: 16
-  #     peft.min_rank: 2
-  #     peft.rank: 8
-  #     peft.target_modules: ["query", "key", "value", "attention.output.dense", "intermediate.dense", "output.dense"]
-  #     training.learning_rate: 2e-4
-  #     experiment_name: "TiroBERTa DyLoRA"
-
-  # - name: "tiroberta_sentiment_sa_lora"   # or tiroberta_tidg_sa_lora
-  #   description: "SaLoRA – structure‑aware pruning of rank"
-  #   peft_method: "sa_lora"
-  #   scientific_role: "experimental"
-  #   priority: 2
-  #   expected_compute_hours: 0.5
-  #   config_overrides:
-  #     peft.method: "sa_lora"
-  #     peft.optimize_hyperparams: false
-  #     peft.initial_rank: 16
-  #     peft.final_rank: 4
-  #     peft.prune_frequency: 500
-  #     peft.prune_ratio: 0.3
-  #     peft.target_modules: ["query", "key", "value", "attention.output.dense", "intermediate.dense", "output.dense"]
-  #     training.learning_rate: 2e-4
-  #     experiment_name: "TiroBERTa SaLoRA"
+  

@@ -193,36 +193,4 @@ baseline_methods:
       training.learning_rate: 2e-4
       experiment_name: "Afro‑XLM‑R SAP-PEFT"
 
-    # --- Dynamic rank baselines (DyLoRA, SaLoRA) ---
-  # - name: "afro_xlmr_dy_lora"
-  #   description: "DyLoRA – dynamic rank via uniform sampling"
-  #   peft_method: "dy_lora"
-  #   scientific_role: "experimental"
-  #   priority: 2
-  #   expected_compute_hours: 0.5
-  #   config_overrides:
-  #     peft.method: "dy_lora"
-  #     peft.optimize_hyperparams: false
-  #     peft.max_rank: 16
-  #     peft.min_rank: 2
-  #     peft.rank: 8  # base rank for budget equivalence
-  #     peft.target_modules: ["query", "key", "value", "attention.output.dense", "intermediate.dense", "output.dense"]
-  #     training.learning_rate: 2e-4
-  #     experiment_name: "Afro‑XLM‑R DyLoRA"
-
-  # - name: "afro_xlmr_sa_lora"
-  #   description: "SaLoRA – structure‑aware pruning of rank"
-  #   peft_method: "sa_lora"
-  #   scientific_role: "experimental"
-  #   priority: 2
-  #   expected_compute_hours: 0.5
-  #   config_overrides:
-  #     peft.method: "sa_lora"
-  #     peft.optimize_hyperparams: false
-  #     peft.initial_rank: 16
-  #     peft.final_rank: 4
-  #     peft.prune_frequency: 500
-  #     peft.prune_ratio: 0.3
-  #     peft.target_modules: ["query", "key", "value", "attention.output.dense", "intermediate.dense", "output.dense"]
-  #     training.learning_rate: 2e-4
-  #     experiment_name: "Afro‑XLM‑R SaLoRA"
+   

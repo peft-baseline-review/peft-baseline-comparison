@@ -192,37 +192,3 @@ baseline_methods:
       peft.initial_rank: 8
       training.learning_rate: 2e-4
       experiment_name: "GPT‑2 SAP-PEFT"
-
-  #   # --- Dynamic rank baselines (DyLoRA, SaLoRA) ---
-  # - name: "gpt2_dy_lora"
-  #   description: "DyLoRA – dynamic rank via uniform sampling"
-  #   peft_method: "dy_lora"
-  #   scientific_role: "experimental"
-  #   priority: 2
-  #   expected_compute_hours: 0.5
-  #   config_overrides:
-  #     peft.method: "dy_lora"
-  #     peft.optimize_hyperparams: false
-  #     peft.max_rank: 16
-  #     peft.min_rank: 2
-  #     peft.rank: 8
-  #     peft.target_modules: ["c_attn", "c_proj", "c_fc"]
-  #     training.learning_rate: 2e-4
-  #     experiment_name: "GPT‑2 DyLoRA"
-
-  # - name: "gpt2_sa_lora"
-  #   description: "SaLoRA – structure‑aware pruning of rank"
-  #   peft_method: "sa_lora"
-  #   scientific_role: "experimental"
-  #   priority: 2
-  #   expected_compute_hours: 0.5
-  #   config_overrides:
-  #     peft.method: "sa_lora"
-  #     peft.optimize_hyperparams: false
-  #     peft.initial_rank: 16
-  #     peft.final_rank: 4
-  #     peft.prune_frequency: 500
-  #     peft.prune_ratio: 0.3
-  #     peft.target_modules: ["c_attn", "c_proj", "c_fc"]
-  #     training.learning_rate: 2e-4
-  #     experiment_name: "GPT‑2 SaLoRA"

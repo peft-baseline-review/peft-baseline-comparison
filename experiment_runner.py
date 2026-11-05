@@ -22,19 +22,17 @@ import torch
 import pandas as pd
 from torch.utils.data import DataLoader
 
-# Ensure the repository root is importable regardless of the CWD.
-_REPO_ROOT = Path(__file__).resolve().parent
-if str(_REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT))
-
+# Configuration - use absolute imports for reliability
 try:
-    from config.experiment import ExperimentConfig
-except ImportError as e:
-    raise ImportError(
-        f"Failed to import configuration modules: {e}. "
-        f"Ensure the repository root is in PYTHONPATH and dependencies "
-        f"are installed."
-    ) from e
+    from config.experiment import ExperimentConfig 
+except ImportError:
+    # Fallback for relative imports with better error reporting
+    sys.path.append(str(Path(__file__).parent.parent))
+    try:
+        from config.experiment import ExperimentConfig
+    except ImportError as e:
+        raise ImportError(f"Failed to import configuration modules: {e}. "
+                         f"Ensure config module is in PYTHONPATH.")
 
 # Core modules (must exist)
 from src.data.dataloader import TigrinyaDataLoader
@@ -339,7 +337,7 @@ class ScientificExperimentRunner:
         for label in unique_labels:
             if label not in expected_labels:
                 logger.warning(f"Label {label} not in expected set {expected_labels}")
-                # Not raising, just warning - dataset may have missing classes
+                # Not raising, just warning – dataset may have missing classes
         
         # Check that model.num_labels matches the number of label_names
         if hasattr(dataloader.config.model, "num_labels"):
@@ -688,7 +686,8 @@ class ScientificExperimentRunner:
             model_metrics=model_metrics,
             inference_metrics=inference_metrics
         )
-        
+
+           
         # Generate report
         additional_info = {
             'training_history': trainer.history if hasattr(trainer, 'history') else {},
@@ -813,6 +812,24 @@ class ScientificExperimentRunner:
         
         logger.info(f"💾 Results saved to {self.experiment_dir}")
     
+
+    def _format_adalora_summary_block(self, efficiency: Dict[str, Any]) -> str:
+        """Render the AdaLoRA-specific markdown section."""
+        return (
+            "\n## AdaLoRA Dynamic Rank Allocation\n\n"
+            "| Metric | Value |\n"
+            "|--------|-------|\n"
+            f"| Initial units (per module × layers) | {efficiency.get('adalora_nominal_units', 0)} |\n"
+            f"| Target units (pruning goal) | {efficiency.get('adalora_target_units', 0)} |\n"
+            f"| Active units (final, post-pruning) | {efficiency.get('adalora_active_units', 0)} |\n"
+            f"| Pruning ratio (active / nominal) | {efficiency.get('adalora_pruning_ratio', 0):.3f} |\n\n"
+            "> The **nominal** trainable parameter count reflects `init_r × n_modules × n_layers` "
+            "(pre-pruning). The **effective** count reflects the sum of retained rank units after the "
+            "native PEFT AdaLoRA cubic pruning schedule. Only the effective count should be used for "
+            "fair efficiency comparison against fixed-rank LoRA baselines; the nominal count documents "
+            "the peak training-memory and checkpoint cost of dynamic allocation.\n"
+        )
+    
     def _generate_markdown_summary(self, results: Dict[str, Any]) -> str:
         """Generate comprehensive markdown summary."""
         metadata = results["experiment_metadata"]
@@ -883,14 +900,18 @@ class ScientificExperimentRunner:
 | Recall Macro | {model_metrics.get('recall_macro', 0):.4f} |
 
 ### Efficiency Metrics
-| Metric | Value |
-|--------|-------|
-| Trainable Parameters | {efficiency.get('trainable_params', 0):,} |
-| Total Parameters | {efficiency.get('total_params', 0):,} |
-| Trainable Percentage | {efficiency.get('trainable_percentage', 0):.2f}% |
-| Model Size | {efficiency.get('model_size_mb', 0):.2f} MB |
-| Compression Ratio | {efficiency.get('compression_ratio', 0):.2f} |
-| Composite Score | {results['results'].get('experiment_report', {}).get('overall_scores', {}).get('composite_score', 0):.4f} |
+
+| Metric | Effective (inference) | Nominal (peak training) |
+|--------|----------------------:|------------------------:|
+| Trainable Parameters | {efficiency.get('trainable_params', 0):,} | {efficiency.get('trainable_params_nominal', efficiency.get('trainable_params', 0)):,} |
+| Trainable Percentage | {efficiency.get('trainable_percentage', 0):.2f}% | {efficiency.get('trainable_percentage_nominal', efficiency.get('trainable_percentage', 0)):.2f}% |
+| Total Parameters | {efficiency.get('total_params', 0):,} | {efficiency.get('total_params', 0):,} |
+| Model Size | {efficiency.get('model_size_mb', 0):.2f} MB | — |
+| Compression Ratio | {efficiency.get('compression_ratio', 0):.2f} | — |
+| Composite Score | {results['results'].get('experiment_report', {}).get('overall_scores', {}).get('composite_score', 0):.4f} | — |
+
+{'**Note:** AdaLoRA — effective = post-pruning (inference compute); nominal = pre-pruning (peak training-memory footprint). For non-adaptive methods (LoRA, IA3, etc.) the two are identical.' if efficiency.get('trainable_params_nominal') is not None else ''}
+{self._format_adalora_summary_block(efficiency) if efficiency.get('adalora_active_units') is not None else ''}
 
 ## Training History
 - **Final Training Loss**: {train_losses[-1] if train_losses else 'N/A'}
@@ -917,14 +938,25 @@ class ScientificExperimentRunner:
         logger.info(f"Duration: {str(duration)}")
         logger.info(f"Accuracy: {model_metrics.get('accuracy', 0):.4f}")
         logger.info(f"F1 Weighted: {model_metrics.get('f1_weighted', 0):.4f}")
-        logger.info(f"Trainable Parameters: {efficiency.get('trainable_params', 0):,}")
-        logger.info(f"Trainable Percentage: {efficiency.get('trainable_percentage', 0):.2f}%")
+        logger.info(f"Trainable Parameters (effective): {efficiency.get('trainable_params', 0):,}")
+        if efficiency.get('trainable_params_nominal') is not None:
+            logger.info(f"Trainable Parameters (nominal):   {efficiency.get('trainable_params_nominal', 0):,}")
+        logger.info(f"Trainable Percentage (effective): {efficiency.get('trainable_percentage', 0):.2f}%")
+        if efficiency.get('trainable_percentage_nominal') is not None:
+            logger.info(f"Trainable Percentage (nominal):   {efficiency.get('trainable_percentage_nominal', 0):.2f}%")
+        if efficiency.get('adalora_pruning_ratio') is not None:
+            logger.info(
+                f"AdaLoRA pruning ratio: {efficiency.get('adalora_pruning_ratio', 0):.3f} "
+                f"(active={efficiency.get('adalora_active_units')}, "
+                f"nominal={efficiency.get('adalora_nominal_units')}, "
+                f"target={efficiency.get('adalora_target_units')})"
+            )
         logger.info(f"Composite Score: {results['results'].get('experiment_report', {}).get('overall_scores', {}).get('composite_score', 0):.4f}")
         logger.info(f"Results saved to: {str(self.experiment_dir)}")
         if self.mlflow_enhancer:
             logger.info(f"📊 MLflow Run ID: {self.mlflow_enhancer.run_id}")
 
-
+    
 # Main execution guard
 if __name__ == "__main__":
     import argparse
